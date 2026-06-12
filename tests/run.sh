@@ -6,6 +6,8 @@ rc=0
 bash "$DIR/test-hooks.sh" || rc=1
 echo
 bash "$DIR/test-install.sh" || rc=1
+echo
+bash "$DIR/test-plugin.sh" || rc=1
 if [[ "${1:-}" == "--bench" ]]; then
   echo
   bash "$DIR/benchmark.sh" || rc=1

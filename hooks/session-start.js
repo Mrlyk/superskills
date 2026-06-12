@@ -78,13 +78,13 @@ function main() {
     if (drift !== null && drift > STALE_COMMITS) {
       parts.push(
         `.superskills/conventions.md is ${drift} commits behind HEAD; `
-        + 'suggest running the ss-discover skill to refresh it when convenient.',
+        + 'suggest running the superskills discover skill to refresh it when convenient.',
       );
     }
   } else if (!hasAgentsMd && !hasClaudeMd && looksLikeProject(root)) {
     parts.push(
       'This project has no AGENTS.md/CLAUDE.md/.superskills specs. '
-      + 'Suggest running the ss-discover skill once to generate minimal conventions.',
+      + 'Suggest running the superskills discover skill once to generate minimal conventions.',
     );
   }
 

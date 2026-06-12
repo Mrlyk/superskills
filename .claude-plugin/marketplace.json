@@ -1,0 +1,15 @@
+{
+  "name": "superskills",
+  "owner": { "name": "Mrlyk" },
+  "metadata": {
+    "description": "Marketplace for the superskills minimal coding harness",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "superskills",
+      "source": "./",
+      "description": "Less is more: minimal coding harness — self-learning, convention discovery, clarification, final test pass."
+    }
+  ]
+}

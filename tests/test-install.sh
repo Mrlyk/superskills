@@ -16,7 +16,7 @@ assert_no_file()  { if [[ ! -e "$2" ]]; then ok "$1"; else fail "$1 (still exist
 assert_contains() { if [[ "$2" == *"$3"* ]]; then ok "$1"; else fail "$1 (missing: $3)"; fi }
 
 # Pre-existing user settings with an unrelated hook must survive everything.
-cat > "$HOME/.claude/settings.json" <<'EOF'
+cat > "$HOME/.aone_copilot/settings.json" <<'EOF'
 {
   "model": "opus",
   "hooks": {
@@ -27,22 +27,21 @@ cat > "$HOME/.claude/settings.json" <<'EOF'
 }
 EOF
 
-echo "== install (autodetect) =="
+echo "== install (autodetect: codex + aone, never claude) =="
 bash "$REPO_DIR/install.sh" >/dev/null
 
-for base in "$HOME/.claude" "$HOME/.aone_copilot"; do
-  name="$(basename "$base")"
-  for s in ss-learn ss-discover ss-clarify ss-test; do
-    assert_file "$name skill $s" "$base/skills/$s/SKILL.md"
-  done
-  assert_file "$name session-start hook" "$base/superskills/hooks/session-start.js"
-  assert_file "$name stop hook" "$base/superskills/hooks/stop-learn.js"
-  settings="$(cat "$base/settings.json")"
-  assert_contains "$name SessionStart registered" "$settings" "session-start.js"
-  assert_contains "$name Stop registered" "$settings" "stop-learn.js"
-done
+assert_no_file "claude untouched by autodetect" "$HOME/.claude/skills/ss-learn"
 
-settings="$(cat "$HOME/.claude/settings.json")"
+for s in ss-learn ss-discover ss-clarify ss-test; do
+  assert_file "aone skill $s" "$HOME/.aone_copilot/skills/$s/SKILL.md"
+done
+assert_contains "aone skill renamed in frontmatter" \
+  "$(head -2 "$HOME/.aone_copilot/skills/ss-learn/SKILL.md")" "name: ss-learn"
+assert_file "aone session-start hook" "$HOME/.aone_copilot/superskills/hooks/session-start.js"
+assert_file "aone stop hook" "$HOME/.aone_copilot/superskills/hooks/stop-learn.js"
+settings="$(cat "$HOME/.aone_copilot/settings.json")"
+assert_contains "aone SessionStart registered" "$settings" "session-start.js"
+assert_contains "aone Stop registered" "$settings" "stop-learn.js"
 assert_contains "user model setting preserved" "$settings" '"model": "opus"'
 assert_contains "user hook preserved" "$settings" "echo user-hook"
 
@@ -53,23 +52,29 @@ first_line="$(head -1 "$HOME/.codex/prompts/ss-learn.md")"
 if [[ "$first_line" != "---" ]]; then ok "codex prompt frontmatter stripped"; else fail "codex frontmatter not stripped"; fi
 assert_contains "codex prompt keeps body" "$(cat "$HOME/.codex/prompts/ss-learn.md")" "# Learn"
 
+echo "== legacy claude install (explicit --tools claude) =="
+bash "$REPO_DIR/install.sh" --tools claude >/dev/null 2>&1
+assert_file "claude legacy skill" "$HOME/.claude/skills/ss-learn/SKILL.md"
+assert_contains "claude legacy hooks registered" \
+  "$(cat "$HOME/.claude/settings.json")" "stop-learn.js"
+
 echo "== idempotency =="
 bash "$REPO_DIR/install.sh" >/dev/null
-count="$(grep -o "stop-learn.js" "$HOME/.claude/settings.json" | wc -l | tr -d ' ')"
+count="$(grep -o "stop-learn.js" "$HOME/.aone_copilot/settings.json" | wc -l | tr -d ' ')"
 if [[ "$count" == 1 ]]; then ok "reinstall does not duplicate hooks"; else fail "duplicated hooks ($count entries)"; fi
-if node -e "JSON.parse(require('fs').readFileSync('$HOME/.claude/settings.json','utf8'))"; then
+if node -e "JSON.parse(require('fs').readFileSync('$HOME/.aone_copilot/settings.json','utf8'))"; then
   ok "settings.json stays valid JSON"
 else
   fail "settings.json corrupted"
 fi
 
 echo "== uninstall =="
-bash "$REPO_DIR/install.sh" --uninstall >/dev/null
-assert_no_file "claude skills removed" "$HOME/.claude/skills/ss-learn"
-assert_no_file "claude hooks removed" "$HOME/.claude/superskills"
+bash "$REPO_DIR/install.sh" --uninstall --tools codex,aone,claude >/dev/null
 assert_no_file "aone skills removed" "$HOME/.aone_copilot/skills/ss-learn"
+assert_no_file "aone hooks removed" "$HOME/.aone_copilot/superskills"
+assert_no_file "claude legacy removed" "$HOME/.claude/skills/ss-learn"
 assert_no_file "codex prompts removed" "$HOME/.codex/prompts/ss-learn.md"
-settings="$(cat "$HOME/.claude/settings.json")"
+settings="$(cat "$HOME/.aone_copilot/settings.json")"
 assert_contains "user hook survives uninstall" "$settings" "echo user-hook"
 if [[ "$settings" != *"superskills"* ]]; then ok "our hooks removed from settings"; else fail "superskills entries remain"; fi
 

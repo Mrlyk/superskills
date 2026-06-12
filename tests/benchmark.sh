@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Real end-to-end benchmark: drives an actual `claude -p` session against a
-# throwaway fixture project and asserts that the skills produce the artifacts.
+# Smoke benchmark: drives an actual `claude -p` session against a throwaway
+# fixture project and asserts that the core skills produce their artifacts.
+# For the full A/B capability benchmark, see tests/bench/run.sh.
 #
-# Requirements: claude CLI logged in, superskills installed (./install.sh).
+# Requirements: claude CLI logged in, superskills plugin installed.
 # Cost note: makes 2 real model calls. Override the model with BENCH_MODEL.
 set -uo pipefail
 
@@ -19,8 +20,9 @@ if ! command -v claude >/dev/null 2>&1; then
   echo "claude CLI not found; skipping benchmark." >&2
   exit 0
 fi
-if [[ ! -f "$HOME/.claude/skills/ss-discover/SKILL.md" ]]; then
-  echo "superskills not installed for Claude Code; run ./install.sh first." >&2
+if ! claude plugin list 2>/dev/null | grep -q superskills; then
+  echo "superskills plugin not installed; run:" >&2
+  echo "  claude plugin marketplace add Mrlyk/superskills && claude plugin install superskills@superskills" >&2
   exit 1
 fi
 
@@ -33,7 +35,7 @@ cat > "$FIX/package.json" <<'EOF'
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test",
     "lint": "eslint src/"
   }
 }
@@ -72,8 +74,8 @@ run_claude() { # prompt
     --max-turns 40 2>&1)
 }
 
-echo "== benchmark 1: ss-discover generates minimal specs =="
-out="$(run_claude 'Invoke the ss-discover skill for this project and follow it exactly.')"
+echo "== benchmark 1: discover generates minimal specs =="
+out="$(run_claude 'Invoke the superskills:discover skill for this project and follow it exactly.')"
 echo "$out" | tail -3 | sed 's/^/  claude: /'
 
 [[ -f "$FIX/.superskills/conventions.md" ]] && ok "conventions.md generated" || fail "conventions.md missing"
@@ -92,8 +94,8 @@ if [[ -f "$FIX/CLAUDE.md" ]]; then
   grep -q '@.superskills/conventions.md' "$FIX/CLAUDE.md" && ok "CLAUDE.md imports conventions" || fail "CLAUDE.md missing conventions import"
 fi
 
-echo "== benchmark 2: ss-learn persists a correction =="
-out="$(run_claude 'Earlier in this project I corrected you twice: (1) always use pnpm here, never npm, because the lockfile is pnpm-lock.yaml on CI; (2) money is always integer cents in this codebase, never floats. Invoke the ss-learn skill and persist whatever qualifies.')"
+echo "== benchmark 2: learn persists a correction =="
+out="$(run_claude 'Earlier in this project I corrected you twice: (1) always use pnpm here, never npm, because the lockfile is pnpm-lock.yaml on CI; (2) money is always integer cents in this codebase, never floats. Invoke the superskills:learn skill and persist whatever qualifies.')"
 echo "$out" | tail -3 | sed 's/^/  claude: /'
 
 entries="$(find "$FIX/.superskills/learnings" -name '*.md' ! -name 'INDEX.md' 2>/dev/null | wc -l | tr -d ' ')"

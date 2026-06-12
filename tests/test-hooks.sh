@@ -91,7 +91,7 @@ assert_contains "labels the injection" "$out" "Past learnings"
 BARE="$TMP/bare"; make_repo "$BARE"
 echo '{"name":"x"}' > "$BARE/package.json"
 out="$(run_session_start "$BARE")"
-assert_contains "bare project suggests ss-discover" "$out" "ss-discover"
+assert_contains "bare project suggests discover" "$out" "discover skill"
 
 out="$(run_session_start "$NOGIT")"
 assert_empty "non-git cwd stays silent" "$out"

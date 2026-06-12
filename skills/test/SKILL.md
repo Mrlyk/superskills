@@ -1,5 +1,5 @@
 ---
-name: ss-test
+name: test
 description: After development work is complete, run one full unit-test pass over the changes. Use when wrapping up a coding task ("补测试", "write tests for this", finishing development) — not during development.
 ---
 

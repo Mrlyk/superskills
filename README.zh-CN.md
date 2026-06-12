@@ -1,6 +1,6 @@
 # superskills
 
-**Less is more.** 面向 Claude Code、Codex、Aone Copilot 的极简 Coding Harness：4 个 skill、2 个 hook、1 个安装脚本，没有其他东西。
+**Less is more.** 以 Claude Code plugin 形式交付的极简 Coding Harness：4 个 skill、2 个 hook、常驻成本约 418 token。Codex 与 Aone Copilot 由同一个安装脚本覆盖。
 
 [English](README.md)
 
@@ -15,16 +15,32 @@
 
 superskills 只保留这四件事，删掉其余一切。
 
+## 它真的有效吗
+
+同任务、同模型（Sonnet 4.6）、真实端到端运行、确定性程序评分的 A/B 对照测量，完整方法学与分项数据见 [docs/benchmark.md](docs/benchmark.md)：
+
+| 场景 | 基线（纯模型） | 带 superskills | Δ |
+|------|--------------|----------------|---|
+| 跨会话记忆（3 条团队决策沉淀为 learnings） | 20% | 100% | **+80pp** |
+| 需求澄清（刻意模糊的功能请求） | 0% 提问 | 67% 提问 | **+67pp** |
+| 收尾测试（"刚开发完"的代码埋了 2 个 bug） | 40%，测试把 bug 锁死 | 100%，两个 bug 均根因修复 | **+60pp** |
+| 规范遵循（规则散落在文档里） | 100% | 100% | 0pp，耗时相近 |
+| 控制组：HumanEval/0–9 原题 | 10/10 | 10/10 | **无回归** |
+
+规律很清晰：当知识在一个十文件的小项目里一眼可见时，强模型本来就守规矩（S1、控制组）。增益恰好出现在 superskills 的工作域上——仓库里根本不存在的知识（记忆）、没人问过的问题（澄清）、以及新写的测试会欣然固化下来的 bug（收尾测试）。基线在三轮中全部围着两个埋好的 bug 写出了绿色测试套件；test skill 三轮全部把两个 bug 在生产代码层面根因修复。
+
 ## 包含什么
 
 | 组件 | 类型 | 作用 |
 |------|------|------|
-| `ss-discover` | skill | 扫描存量项目，生成极简规范文件：`.superskills/conventions.md`（不超过 80 行）、`AGENTS.md`、`CLAUDE.md`；规范过期时负责刷新 |
-| `ss-learn` | skill | 把值得长期保留的经验（用户纠正、踩坑与修复、代码中看不出的决策）沉淀到 `.superskills/learnings/` |
-| `ss-clarify` | skill | 只提出会改变实现方案的问题，每个问题附推荐答案，澄清完立即开始编码 |
-| `ss-test` | skill | 开发结束后组织一次完整的单元测试，只看结果，不固定流程 |
-| `session-start.js` | hook | 每次会话注入 learnings 索引；规范落后 HEAD 超过 30 个提交时提醒刷新；项目缺少 AI 规范文件时建议运行 `ss-discover` |
-| `stop-learn.js` | hook | 自动总结：当会话做了实际工作（用户消息不少于 5 条且有文件修改）时，在结束前让模型带着完整上下文判断一次是否有值得沉淀的内容 |
+| `superskills:discover` | skill | 扫描存量项目，生成极简规范文件：`.superskills/conventions.md`（不超过 80 行）、`AGENTS.md`、`CLAUDE.md`；过期时刷新，并把已固化的 learnings 折叠进规范 |
+| `superskills:learn` | skill | 把值得长期保留的经验（用户纠正、踩坑与修复、代码中看不出的决策）沉淀到 `.superskills/learnings/` |
+| `superskills:clarify` | skill | 只提出会改变实现方案的问题，每个问题附推荐答案，澄清完立即开始编码 |
+| `superskills:test` | skill | 开发结束后组织一次完整的单元测试，只看结果，不固定流程 |
+| SessionStart hook | hook | 每次会话注入 learnings 索引；规范落后 HEAD 超过 30 个提交时提醒刷新；项目缺少 AI 规范文件时建议运行 discover |
+| Stop hook | hook | 自动总结：当会话做了实际工作（用户消息不少于 5 条且有文件修改）时，在结束前让模型带着完整上下文判断一次是否有值得沉淀的内容 |
+
+所有组件都会出现在 `/plugin` 面板中，并标注各自的 token 成本。常驻总成本约 418 token。
 
 ### 项目内产物（提交到仓库）
 
@@ -38,6 +54,34 @@ AGENTS.md                 # 不超过 20 行，指向 .superskills/
 CLAUDE.md                 # @AGENTS.md + @.superskills/conventions.md
 ```
 
+## 安装
+
+### Claude Code（plugin，推荐）
+
+```
+/plugin marketplace add Mrlyk/superskills
+/plugin install superskills@superskills
+```
+
+也可以用 CLI：`claude plugin marketplace add Mrlyk/superskills && claude plugin install superskills@superskills`。hooks 随插件自动注册，不会改动你的 `settings.json`。
+
+### Codex / Aone Copilot
+
+```bash
+git clone https://github.com/Mrlyk/superskills.git && cd superskills
+./install.sh              # 自动检测 ~/.codex 与 ~/.aone_copilot
+```
+
+| 工具 | Skills | Hooks（自动总结 + 注入） |
+|------|--------|------|
+| Claude Code | plugin：`/superskills:discover` 等 | 支持 |
+| Aone Copilot | `~/.aone_copilot/skills/ss-*` | 支持 |
+| Codex | `~/.codex/prompts/ss-*.md`（自定义 prompts） | 不支持，依赖 `AGENTS.md` 指引 |
+
+无法访问 marketplace 的环境可用 `./install.sh --tools claude` 做传统 settings 安装。`--uninstall` 可完整卸载并保留你自己的配置。
+
+安装后，在每个项目里运行一次 discover skill，把生成的文件提交即可。
+
 ## 沉淀的知识如何被利用
 
 两条通道，保证核心机制在没有 hook 的工具里也能工作：
@@ -45,51 +89,20 @@ CLAUDE.md                 # @AGENTS.md + @.superskills/conventions.md
 - **规范**走文件引用：Claude Code 和 Aone Copilot 通过 `CLAUDE.md` 的 import 加载；Codex 通过 `AGENTS.md` 中的指引读取。零 hook 依赖，所有工具通用。
 - **Learnings**走 SessionStart hook 注入索引（Claude Code / Aone Copilot）。模型看到的只有每条一行的索引，相关时才打开完整条目——历史知识的成本是几百个 token，而非几千。
 
-已经固化为稳定规则的 learnings，会在 `ss-discover` 的刷新模式中被折叠进 `conventions.md`，知识库不会无限膨胀。
+已经固化为稳定规则的 learnings，会在 discover 的刷新模式中被折叠进 `conventions.md`，知识库不会无限膨胀。
 
 ## 自动总结的设计
 
-与基于观察的方案（ECC 式的 PreToolUse/PostToolUse 全量捕获加后台分析进程）相比，superskills 把判断挪到了唯一既便宜又可靠的时机：会话结束。Stop hook 是一个约 100 行的过滤器，只判断这个会话*值不值得*总结（消息够多、确实改了文件、每个会话只触发一次、绝不循环）；而*总结什么*交给模型——它本来就持有完整会话上下文，并且被明确允许"无可沉淀就什么都不写"。没有观察文件、没有后台进程、没有逐工具调用的开销。产出直接落在项目仓库里，整个团队共享。
-
-## 安装
-
-```bash
-git clone https://github.com/Mrlyk/superskills.git
-cd superskills
-./install.sh              # 自动检测 ~/.claude、~/.codex、~/.aone_copilot
-```
-
-可选参数：
-
-```bash
-./install.sh --tools claude,codex,aone   # 显式指定工具
-./install.sh --all                       # 安装到全部三个工具
-./install.sh --uninstall                 # 干净卸载（保留用户自己的配置）
-```
-
-| 工具 | Skills | Hooks（自动总结 + 注入） |
-|------|--------|------|
-| Claude Code | `~/.claude/skills/ss-*` | 支持 |
-| Aone Copilot | `~/.aone_copilot/skills/ss-*` | 支持 |
-| Codex | `~/.codex/prompts/ss-*.md`（自定义 prompts） | 不支持，依赖 `AGENTS.md` 指引 |
-
-安装后，在每个项目里执行一次：
-
-```
-> 使用 ss-discover skill
-```
-
-检查生成的文件并提交，即可。
+与基于观察的方案（PreToolUse/PostToolUse 全量捕获加后台分析进程）相比，superskills 把判断挪到了唯一既便宜又可靠的时机：会话结束。Stop hook 是一个约 100 行的过滤器，只判断这个会话*值不值得*总结（消息够多、确实改了文件、每个会话只触发一次、绝不循环）；而*总结什么*交给模型——它本来就持有完整会话上下文，并且被明确允许"无可沉淀就什么都不写"。没有观察文件、没有后台进程、没有逐工具调用的开销。产出直接落在项目仓库里，整个团队共享。
 
 ## 测试
 
 ```bash
-tests/run.sh           # hook 单元测试 + 安装脚本测试（不调用模型）
-tests/run.sh --bench   # 追加真实端到端基准测试（驱动 claude -p）
+tests/run.sh              # hook + 安装脚本 + plugin 结构测试（不调用模型）
+tests/run.sh --bench      # 追加冒烟基准（真实 claude -p 运行）
+tests/bench/run.sh        # 完整 A/B 能力基准（约 44 次模型运行）
 ```
-
-基准测试会搭建一个一次性的 fixture 项目，通过 Claude CLI 以受限权限真实运行 `ss-discover` 和 `ss-learn`，并断言产物：从真实 manifest 中发现的规范、被沉淀并建立索引的经验，以及由真实 hook 注入到新会话的索引。
 
 ## License
 
-MIT
+MIT。基准控制组内置了 HumanEval 题目（MIT，OpenAI），见 [tests/bench/humaneval/ATTRIBUTION.md](tests/bench/humaneval/ATTRIBUTION.md)。

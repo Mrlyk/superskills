@@ -1,5 +1,5 @@
 ---
-name: ss-discover
+name: discover
 description: Discover an existing project's conventions and generate or refresh minimal AI spec files (.superskills/conventions.md, AGENTS.md, CLAUDE.md). Use when a project lacks AGENTS.md/CLAUDE.md, when the user asks to generate conventions ("生成规范", "init ai docs", "discover conventions"), or when conventions are reported stale.
 ---
 

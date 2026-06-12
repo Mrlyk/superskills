@@ -1,0 +1,9 @@
+{
+  "name": "store-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "lint": "eslint src/"
+  }
+}

@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# superskills installer — Claude Code, Codex, Aone Copilot.
+# superskills installer for tools without Claude Code plugin support.
 #
-#   ./install.sh                       # autodetect installed tools
-#   ./install.sh --tools claude,codex,aone
-#   ./install.sh --all                 # install for all three tools
+#   ./install.sh                       # autodetect: Codex (~/.codex), Aone Copilot (~/.aone_copilot)
+#   ./install.sh --tools codex,aone
+#   ./install.sh --tools claude        # legacy settings-based install (prefer the plugin:
+#                                      #   /plugin marketplace add Mrlyk/superskills)
+#   ./install.sh --all                 # codex + aone + claude(legacy)
 #   ./install.sh --uninstall [--tools ...]
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILLS=(ss-learn ss-discover ss-clarify ss-test)
+SKILLS=(learn discover clarify test)   # installed as ss-<name> to avoid collisions
 HOOK_FILES=(session-start.js stop-learn.js)
 
 TOOLS=""
@@ -21,7 +23,7 @@ while [[ $# -gt 0 ]]; do
     --all) ALL=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     -h|--help)
-      sed -n '2,7p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 1 ;;
   esac
@@ -38,7 +40,7 @@ tool_base() {
 
 detect_tools() {
   local found=""
-  for t in claude codex aone; do
+  for t in codex aone; do
     [[ -d "$(tool_base "$t")" ]] && found="${found:+$found,}$t"
   done
   echo "$found"
@@ -46,12 +48,14 @@ detect_tools() {
 
 if [[ -z "$TOOLS" ]]; then
   if [[ "$ALL" == 1 ]]; then
-    TOOLS="claude,codex,aone"
+    TOOLS="codex,aone,claude"
   else
     TOOLS="$(detect_tools)"
     if [[ -z "$TOOLS" ]]; then
-      echo "No supported tool directory found (~/.claude, ~/.codex, ~/.aone_copilot)." >&2
-      echo "Use --tools claude,codex,aone or --all to choose explicitly." >&2
+      echo "No supported tool directory found (~/.codex, ~/.aone_copilot)." >&2
+      echo "For Claude Code, install the plugin instead:" >&2
+      echo "  /plugin marketplace add Mrlyk/superskills && /plugin install superskills@superskills" >&2
+      echo "Or force the legacy install with --tools claude." >&2
       exit 1
     fi
   fi
@@ -114,12 +118,19 @@ fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
 EOF
 }
 
+# Copy a skill, renaming it ss-<name> (frontmatter name kept in sync).
+copy_skill_prefixed() { # src-skill dest-dir
+  local s="$1" dest="$2"
+  mkdir -p "$dest"
+  sed "s/^name: $s\$/name: ss-$s/" "$REPO_DIR/skills/$s/SKILL.md" > "$dest/SKILL.md"
+}
+
 install_claude_like() {
   local base="$1"
   mkdir -p "$base/skills" "$base/superskills/hooks"
   for s in "${SKILLS[@]}"; do
-    rm -rf "$base/skills/$s"
-    cp -R "$REPO_DIR/skills/$s" "$base/skills/$s"
+    rm -rf "$base/skills/ss-$s"
+    copy_skill_prefixed "$s" "$base/skills/ss-$s"
   done
   for h in "${HOOK_FILES[@]}"; do
     cp "$REPO_DIR/hooks/$h" "$base/superskills/hooks/$h"
@@ -129,7 +140,7 @@ install_claude_like() {
 
 uninstall_claude_like() {
   local base="$1"
-  for s in "${SKILLS[@]}"; do rm -rf "$base/skills/$s"; done
+  for s in "${SKILLS[@]}"; do rm -rf "$base/skills/ss-$s"; done
   rm -rf "$base/superskills"
   [[ -f "$base/settings.json" ]] && merge_settings "$base" uninstall
 }
@@ -140,13 +151,13 @@ install_codex() {
   mkdir -p "$base/prompts"
   for s in "${SKILLS[@]}"; do
     awk 'BEGIN{fm=0} /^---$/{fm++; next} fm!=1' \
-      "$REPO_DIR/skills/$s/SKILL.md" > "$base/prompts/$s.md"
+      "$REPO_DIR/skills/$s/SKILL.md" > "$base/prompts/ss-$s.md"
   done
 }
 
 uninstall_codex() {
   local base="$1"
-  for s in "${SKILLS[@]}"; do rm -f "$base/prompts/$s.md"; done
+  for s in "${SKILLS[@]}"; do rm -f "$base/prompts/ss-$s.md"; done
 }
 
 require_node
@@ -164,6 +175,11 @@ for t in "${TOOL_LIST[@]}"; do
   else
     case "$t" in
       codex) install_codex "$base" ;;
+      claude)
+        install_claude_like "$base"
+        echo "note: legacy install for Claude Code; the plugin is preferred:" >&2
+        echo "  /plugin marketplace add Mrlyk/superskills && /plugin install superskills@superskills" >&2
+        ;;
       *) install_claude_like "$base" ;;
     esac
     echo "superskills installed for $t ($base)"
@@ -173,10 +189,10 @@ done
 if [[ "$UNINSTALL" != 1 ]]; then
   cat <<'EOS'
 
-Done. In each project, run the ss-discover skill once to generate
+Done. In each project, run the discover skill once to generate
 .superskills/conventions.md + AGENTS.md + CLAUDE.md, then commit them.
 Skills: ss-discover / ss-learn / ss-clarify / ss-test
-Auto-learning: triggers at session end in Claude Code / Aone Copilot.
+Auto-learning hooks: active in Aone Copilot (and legacy Claude Code installs).
 Codex: skills are installed as custom prompts (/ss-learn etc.); no hooks.
 EOS
 fi
