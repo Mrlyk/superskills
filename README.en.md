@@ -141,6 +141,8 @@ Learnings that harden into stable rules get folded into `conventions.md` by `dis
 
 Compared to observation-based systems (PreToolUse/PostToolUse capture plus background analyzers), superskills moves the judgment to the one moment it is cheap and reliable: session end. The Stop hook is a ~100-line filter that decides only *whether* the session is worth mining (enough messages, files actually changed, once per session, never loops); the model — which already holds the full session in context — decides *what* is worth keeping, with explicit permission to keep nothing. No observation files, no background processes, no per-tool-call overhead. And the output lands in the repo, so the whole team inherits it.
 
+This is an evidence-backed choice, not a guess (full reasoning and data in [docs/auto-learning-design.md](docs/auto-learning-design.md)). ECC moved its capture from a Stop hook to PreToolUse/PostToolUse because its early version triggered via a **probabilistic skill** (~50-80% hit rate, in its own docs); superskills' stop-learn was a **deterministic hook** from day one and reads the transcript Claude Code already persists, so it never needs a second capture stream — and therefore none of the background process, file rotation, or five-layer self-loop guards (ECC's background observer is complex enough to ship disabled by default). Auto-learning *generation* is benchmarked over two rounds: the pure model never persists anything on its own (0% baseline), while stop-learn captures the code-invisible decisions in the standard case and, under low signal-to-noise, precisely separates a team convention from throwaway one-offs without over-learning.
+
 ## Testing
 
 ```bash
