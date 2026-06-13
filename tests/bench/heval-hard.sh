@@ -36,12 +36,20 @@ while [[ $# -gt 0 ]]; do
     --hard) HARD_OVERRIDE="$2"; shift 2 ;;   # measure these ids, skip screening
     --append) APPEND=1; shift ;;             # append to results instead of truncating
     --plus) PLUS=1; shift ;;                 # EvalPlus grading (HumanEval+)
+    --mbpp) MBPP=1; shift ;;                  # MBPP+ dataset (EvalPlus grading)
     *) echo "unknown option: $1" >&2; exit 1 ;;
   esac
 done
 
 PLUS="${PLUS:-0}"
-if [[ "$PLUS" == 1 ]]; then
+MBPP="${MBPP:-0}"
+DATASET=humaneval
+if [[ "$MBPP" == 1 ]]; then
+  DATA="$BENCH_DIR/humaneval/MbppPlus.jsonl"
+  [[ -f "$DATA" ]] || gunzip -kc "$BENCH_DIR/humaneval/MbppPlus.jsonl.gz" > "$DATA"
+  GRADER="$BENCH_DIR/humaneval/grade-plus.py"
+  TAG="mbpp-plus"; DATASET=mbpp
+elif [[ "$PLUS" == 1 ]]; then
   DATA="$BENCH_DIR/humaneval/HumanEvalPlus.jsonl"
   [[ -f "$DATA" ]] || gunzip -kc "$BENCH_DIR/humaneval/HumanEvalPlus.jsonl.gz" > "$DATA"
   GRADER="$BENCH_DIR/humaneval/grade-plus.py"
@@ -119,12 +127,21 @@ EOF
 #   auth). Arm B: superskills lives in the fixture's own .claude/.
 run_one() { # dir arm problemFile outfile
   local dir="$1" arm="$2" pfile="$3" outfile="$4"
-  local fnprompt extra=()
-  fnprompt="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).prompt)' "$pfile")"
+  local fnprompt ep extra=() task
+  # Use python3 (not node) to read fields: EvalPlus plus_input contains
+  # Infinity/-Infinity/NaN literals that node's JSON.parse rejects but Python accepts.
+  fnprompt="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["prompt"])' "$pfile")"
+  if [[ "$DATASET" == mbpp ]]; then
+    # MBPP prompts are a docstring + example assert with no def line, so name the function.
+    ep="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["entry_point"])' "$pfile")"
+    task="Create solution.py defining a Python function named \`$ep\` that satisfies the description and the example assertion(s) below. Match the behavior the assertions imply (argument order, types, return value); include any imports it needs. The deliverable is solution.py."
+  else
+    task="Create solution.py in the project root implementing exactly this function. Keep the given signature and docstring behavior; include any imports it needs. The deliverable is solution.py."
+  fi
   if [[ "$arm" == A ]]; then
     extra+=(--disallowedTools "Skill")
   fi
-  (cd "$dir" && claude -p "Create solution.py in the project root implementing exactly this function. Keep the given signature and docstring behavior; include any imports it needs. The deliverable is solution.py.
+  (cd "$dir" && claude -p "$task
 
 \`\`\`python
 $fnprompt

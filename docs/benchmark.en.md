@@ -113,6 +113,31 @@ Per problem, arm B converts the verification-detectable class and hits a wall on
 
 The honest reading across six rounds: superskills' verify hook reliably converts the **boundary-bug class** (implementation correct, untested — 154 is the flagship) and hits a hard ceiling on the **reasoning class** (degenerate inputs, unstated defaults, wrong algorithms), with one measured regression where forced verification cost a correct answer. HumanEval+ is the regime where a harness has the *least* leverage — single-shot, single-function, no cross-session memory to recall, no multi-turn clarification, no team conventions in play — and there the net is a modest, honest +10pp. The gains superskills is built for live on the capability suite (+60–80pp), not here.
 
+## MBPP+: a second community benchmark
+
+To test whether the verify hook's benefit generalizes and to grow the sample (this machine has no Docker, so SWE-bench's official harness is infeasible), a second EvalPlus community set — **MBPP+** (same single-function dimension, larger pool) — was added. Same method: screen 0–79 → a 10-problem hard set, 6 trials/arm:
+
+| Arm | MBPP+ hard pass@1 (10 problems, 6 trials) |
+|-----|--------|
+| Baseline (pure model) | 13/60 (21.7%) |
+| With superskills | 15/60 (25.0%), **+3pp** |
+
+A small positive gain, same direction as HumanEval+ but smaller: the verify hook converts boundary bugs here too, but MBPP+ has more algorithm problems where forced verification over-corrects a borderline-right solution (e.g. 56 `eulerian_num`), offsetting part of the gain. At 3 trials it read −3pp — noise; at 6 trials it stabilizes at +3pp, confirming small samples are not trustworthy.
+
+## Optimization loop: no free lunch
+
+With the combined pass@1 over both community sets as the north star, several verify-reason variants were measured, keeping a change only if it net-improved:
+
+| Reason variant | Combined hard pass@1 (HumanEval+ ∪ MBPP+, 3 trials) |
+|----------------|--------|
+| R1 concise (shipped) | **19/63 (30.2%)** |
+| R2 longer (derive-expected, paste-output, emphatic caps) | lower (13% in the early HumanEval+ test) |
+| R3 trimmed | lower (20%) |
+| Lever E anti-over-correction (fix only against stated examples) | 19/63 (30.2%) — exact wash; HumanEval+ up, MBPP+ down |
+| Lever G minimal (run examples + a few edges) | 16/63 (25.4%) — worse; loses boundary-bug wins |
+
+Of five variants the shipped R1 is the optimum: more aggressive/verbose makes a single-shot model skim, more conservative/minimal misses boundary bugs or cancels the gain. The verify hook's aggression is a tradeoff dial with no net win — it is at its mechanism ceiling. Honest conclusion: on the single-function coding where a harness has the least leverage, the verify hook is a small, benchmark-dependent net positive (+3 to +10pp) from the boundary-bug class, partly offset by occasional algorithm over-correction.
+
 ## Reproducing
 
 ```bash
@@ -120,6 +145,7 @@ The honest reading across six rounds: superskills' verify hook reliably converts
 ./tests/bench/run.sh --trials 3                  # capability suite (S1–S4 + control)
 ./tests/bench/heval-hard.sh                      # standard HumanEval hard subset: screen + measure
 ./tests/bench/heval-hard.sh --plus --screen-range 0:163 --rescreen   # HumanEval+ full-range hard subset
+./tests/bench/heval-hard.sh --mbpp --screen-range 0:79 --rescreen    # MBPP+ hard subset (second community benchmark)
 ```
 
 Prerequisites: `claude` CLI logged in, Node ≥ 18, Python 3. Important: the superskills plugin must **not** be installed at user scope while `heval-hard.sh` runs — the local `directory` marketplace would load live repo files into every baseline trial and contaminate arm A. The script gives arm B its own in-fixture `.claude/`, so a global install is both unnecessary and harmful here.

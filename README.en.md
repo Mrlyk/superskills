@@ -31,6 +31,7 @@ A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, determinis
 | Convention adherence (rules scattered in docs) | 100% | 100% | even |
 | HumanEval hard subset (canonical `check`) | 40% | 50% | **+10pp** |
 | HumanEval+ hard subset (EvalPlus, full-range, 8 trials) | 20.5% | 30.7% | **+10pp** |
+| MBPP+ hard subset (EvalPlus, 6 trials) | 21.7% | 25.0% | **+3pp** |
 | Control: HumanEval/0–9 verbatim | 10/10 | 10/10 | **no regression** |
 
 ## Install
