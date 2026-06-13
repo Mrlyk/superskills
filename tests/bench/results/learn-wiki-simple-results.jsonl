@@ -1,0 +1,6 @@
+{"scenario":"learn_wiki_simple","arm":"flat","trial":3,"checks":{"generated":true,"capturesIso":true,"capturesCents":true,"indexUpdated":true,"concise":true},"score":1,"contentFiles":2}
+{"scenario":"learn_wiki_simple","arm":"flat","trial":1,"checks":{"generated":true,"capturesIso":true,"capturesCents":true,"indexUpdated":true,"concise":true},"score":1,"contentFiles":2}
+{"scenario":"learn_wiki_simple","arm":"wiki","trial":1,"checks":{"generated":true,"capturesIso":true,"capturesCents":true,"indexUpdated":true,"concise":true},"score":1,"contentFiles":1}
+{"scenario":"learn_wiki_simple","arm":"flat","trial":2,"checks":{"generated":true,"capturesIso":true,"capturesCents":true,"indexUpdated":true,"concise":true},"score":1,"contentFiles":2}
+{"scenario":"learn_wiki_simple","arm":"wiki","trial":2,"checks":{"generated":true,"capturesIso":true,"capturesCents":true,"indexUpdated":true,"concise":true},"score":1,"contentFiles":1}
+{"scenario":"learn_wiki_simple","arm":"wiki","trial":3,"checks":{"generated":true,"capturesIso":true,"capturesCents":true,"indexUpdated":true,"concise":true},"score":1,"contentFiles":1}

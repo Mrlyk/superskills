@@ -1,0 +1,6 @@
+{"scenario":"learn_wiki_accum","arm":"wiki","trial":1,"checks":{"capturedNew":true,"preserved":true,"consolidated":true,"noDuplication":true,"indexMaintained":true},"score":1,"contentFiles":3,"tsFiles":1}
+{"scenario":"learn_wiki_accum","arm":"flat","trial":3,"checks":{"capturedNew":true,"preserved":true,"consolidated":false,"noDuplication":false,"indexMaintained":true},"score":0.6,"contentFiles":4,"tsFiles":2}
+{"scenario":"learn_wiki_accum","arm":"flat","trial":1,"checks":{"capturedNew":true,"preserved":true,"consolidated":false,"noDuplication":false,"indexMaintained":true},"score":0.6,"contentFiles":4,"tsFiles":2}
+{"scenario":"learn_wiki_accum","arm":"flat","trial":2,"checks":{"capturedNew":true,"preserved":true,"consolidated":false,"noDuplication":false,"indexMaintained":true},"score":0.6,"contentFiles":4,"tsFiles":2}
+{"scenario":"learn_wiki_accum","arm":"wiki","trial":3,"checks":{"capturedNew":true,"preserved":true,"consolidated":true,"noDuplication":true,"indexMaintained":true},"score":1,"contentFiles":3,"tsFiles":1}
+{"scenario":"learn_wiki_accum","arm":"wiki","trial":2,"checks":{"capturedNew":true,"preserved":true,"consolidated":true,"noDuplication":true,"indexMaintained":true},"score":1,"contentFiles":3,"tsFiles":1}

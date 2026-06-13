@@ -96,18 +96,20 @@ function main() {
   if (userMessages < MIN_USER_MESSAGES || !wroteFiles) return;
 
   fs.writeFileSync(marker, new Date().toISOString());
-  const today = new Date().toISOString().slice(0, 10);
   process.stdout.write(JSON.stringify({
     decision: 'block',
     reason:
       'Before finishing, review this session for durable learnings: '
       + 'user corrections, pitfalls with their fixes, or project decisions not visible in code. '
-      + 'If none qualify, stop now without writing anything. Otherwise persist each one under '
-      + 'the repository root (the directory containing .git, NOT the cwd if that is a subdirectory) '
-      + `as <repo-root>/.superskills/learnings/${today}-<slug>.md (frontmatter: title/date/tags; `
-      + 'body: **Context** / **Rule** / **Why**, under 15 lines), '
-      + 'skip anything already covered by <repo-root>/.superskills/learnings/INDEX.md, '
-      + 'update INDEX.md with one line per new entry, then stop.',
+      + 'If none qualify, stop now without writing anything. Otherwise persist them in the project '
+      + 'knowledge wiki at the repository root (the directory containing .git, NOT the cwd if that '
+      + 'is a subdirectory): <repo-root>/.superskills/learnings/ holds one markdown page per topic '
+      + '(frontmatter topic/tags; concise rules), not a file per learning. Read INDEX.md, then merge '
+      + 'each learning into the existing <topic>.md page it belongs to — keep the page focused and '
+      + 'deduplicated, cross-link related topics with [[topic]] — creating a new <topic>.md only when '
+      + 'no topic fits. Then always update INDEX.md so it lists every page with a one-line summary '
+      + '(it is the only file injected into future sessions, so a page missing from it is invisible), '
+      + 'then stop.',
   }));
 }
 

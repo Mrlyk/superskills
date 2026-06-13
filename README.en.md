@@ -52,9 +52,10 @@ Everything shows up in the `/plugin` panel with per-component token costs. Total
 ```
 .superskills/
 ├── conventions.md        # single source of truth, ≤80 lines
-└── learnings/
-    ├── INDEX.md          # one line per learning, auto-injected at session start
-    └── 2026-06-12-use-pnpm.md
+└── learnings/            # topic wiki: one page per topic, merged + deduplicated
+    ├── INDEX.md          # catalog, one line per topic, auto-injected at session start
+    ├── timestamps.md     # topic page (frontmatter + rules + [[cross-links]])
+    └── money.md
 AGENTS.md                 # ≤20 lines, points at .superskills/
 CLAUDE.md                 # @AGENTS.md + @.superskills/conventions.md
 ```
@@ -112,7 +113,7 @@ Learnings that harden into stable rules get folded into `conventions.md` by `dis
 
 ## Auto-learning design
 
-The judgment of *whether* a session is worth mining lands at the one moment it is cheap and reliable: session end. The Stop hook is a ~100-line filter that decides only that (enough messages, files actually changed, once per session, never loops); the model — which already holds the full session in context — decides *what* is worth keeping, with explicit permission to keep nothing. No observation files, no background processes, no per-tool-call overhead, and the output lands in the repo so the whole team inherits it. This is an evidence-backed choice (full reasoning and data in [docs/auto-learning-design.en.md](docs/auto-learning-design.en.md)): the pure model never persists anything on its own (0% baseline), while stop-learn captures the code-invisible decisions in the standard case and, under low signal-to-noise, precisely separates a team convention from throwaway one-offs without over-learning (both rounds 0% → 100%).
+The judgment of *whether* a session is worth mining lands at the one moment it is cheap and reliable: session end. The Stop hook is a ~100-line filter that decides only that (enough messages, files actually changed, once per session, never loops); the model — which already holds the full session in context — decides *what* is worth keeping, with explicit permission to keep nothing. No observation files, no background processes, no per-tool-call overhead, and the output lands in the repo so the whole team inherits it. This is an evidence-backed choice (full reasoning and data in [docs/auto-learning-design.en.md](docs/auto-learning-design.en.md)): the pure model never persists anything on its own (0% baseline), while stop-learn captures the code-invisible decisions in the standard case and, under low signal-to-noise, precisely separates a team convention from throwaway one-offs without over-learning (both rounds 0% → 100%). Learnings are organized as a topic wiki — one page per topic, new learnings merged in and deduplicated rather than piled up by date — which beats dated files by +40pp on knowledge accumulation (see [docs/learnings-wiki.en.md](docs/learnings-wiki.en.md)).
 
 ## Testing
 

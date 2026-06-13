@@ -1,6 +1,6 @@
-{"scenario":"learn_auto","arm":"A","trial":3,"checks":{"generated":false,"capturesIsoRule":false,"capturesCentsRule":false,"indexUpdated":false,"formatOk":false,"concise":false},"score":0,"entries":0}
-{"scenario":"learn_auto","arm":"A","trial":1,"checks":{"generated":false,"capturesIsoRule":false,"capturesCentsRule":false,"indexUpdated":false,"formatOk":false,"concise":false},"score":0,"entries":0}
-{"scenario":"learn_auto","arm":"A","trial":2,"checks":{"generated":false,"capturesIsoRule":false,"capturesCentsRule":false,"indexUpdated":false,"formatOk":false,"concise":false},"score":0,"entries":0}
-{"scenario":"learn_auto","arm":"B","trial":1,"checks":{"generated":true,"capturesIsoRule":true,"capturesCentsRule":true,"indexUpdated":true,"formatOk":true,"concise":true},"score":1,"entries":2}
-{"scenario":"learn_auto","arm":"B","trial":2,"checks":{"generated":true,"capturesIsoRule":true,"capturesCentsRule":true,"indexUpdated":true,"formatOk":true,"concise":true},"score":1,"entries":2}
-{"scenario":"learn_auto","arm":"B","trial":3,"checks":{"generated":true,"capturesIsoRule":true,"capturesCentsRule":true,"indexUpdated":true,"formatOk":true,"concise":true},"score":1,"entries":2}
+{"scenario":"learn_auto","mode":"standard","arm":"A","trial":1,"checks":{"generated":false,"capturesIsoRule":false,"capturesCentsRule":false,"indexUpdated":false,"formatOk":false,"concise":false},"score":0,"entries":0}
+{"scenario":"learn_auto","mode":"standard","arm":"A","trial":3,"checks":{"generated":false,"capturesIsoRule":false,"capturesCentsRule":false,"indexUpdated":false,"formatOk":false,"concise":false},"score":0,"entries":0}
+{"scenario":"learn_auto","mode":"standard","arm":"A","trial":2,"checks":{"generated":false,"capturesIsoRule":false,"capturesCentsRule":false,"indexUpdated":false,"formatOk":false,"concise":false},"score":0,"entries":0}
+{"scenario":"learn_auto","mode":"standard","arm":"B","trial":2,"checks":{"generated":true,"capturesIsoRule":true,"capturesCentsRule":true,"indexUpdated":true,"formatOk":true,"concise":true},"score":1,"entries":1}
+{"scenario":"learn_auto","mode":"standard","arm":"B","trial":1,"checks":{"generated":true,"capturesIsoRule":true,"capturesCentsRule":true,"indexUpdated":true,"formatOk":true,"concise":true},"score":1,"entries":1}
+{"scenario":"learn_auto","mode":"standard","arm":"B","trial":3,"checks":{"generated":true,"capturesIsoRule":true,"capturesCentsRule":true,"indexUpdated":true,"formatOk":true,"concise":true},"score":1,"entries":1}

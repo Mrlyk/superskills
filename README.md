@@ -52,9 +52,10 @@ superskills 只保留这四件事，删掉其余一切。
 ```
 .superskills/
 ├── conventions.md        # 唯一事实源，不超过 80 行
-└── learnings/
-    ├── INDEX.md          # 每条经验一行，会话开始时自动注入
-    └── 2026-06-12-use-pnpm.md
+└── learnings/            # 主题 wiki：一个主题一页，合并去重
+    ├── INDEX.md          # 主题目录，每主题一行，会话开始时自动注入
+    ├── timestamps.md     # 主题页（frontmatter + 规则 + [[交叉链接]]）
+    └── money.md
 AGENTS.md                 # 不超过 20 行，指向 .superskills/
 CLAUDE.md                 # @AGENTS.md + @.superskills/conventions.md
 ```
@@ -112,7 +113,7 @@ git clone https://github.com/Mrlyk/superskills.git && cd superskills
 
 ## 自动总结的设计
 
-"这个会话值不值得总结"的判断，放在唯一既便宜又可靠的时机：会话结束。Stop hook 是一个约 100 行的过滤器，只判断会话*值不值得*总结（消息够多、确实改了文件、每个会话只触发一次、绝不循环）；而*总结什么*交给模型——它本来就持有完整会话上下文，并被明确允许"无可沉淀就什么都不写"。没有观察文件、没有后台进程、没有逐工具调用的开销，产出直接落在仓库里供全队共享。这是基准支撑的选择（完整推演与数据见 [docs/auto-learning-design.md](docs/auto-learning-design.md)）：纯模型会话结束后从不主动沉淀（基线 0%），stop-learn 在标准场景完整捕获代码里看不出的项目决策，并在信噪比低的难场景精准区分团队规范与一次性偏好、不过度学习（两轮均 0% → 100%）。
+"这个会话值不值得总结"的判断，放在唯一既便宜又可靠的时机：会话结束。Stop hook 是一个约 100 行的过滤器，只判断会话*值不值得*总结（消息够多、确实改了文件、每个会话只触发一次、绝不循环）；而*总结什么*交给模型——它本来就持有完整会话上下文，并被明确允许"无可沉淀就什么都不写"。没有观察文件、没有后台进程、没有逐工具调用的开销，产出直接落在仓库里供全队共享。这是基准支撑的选择（完整推演与数据见 [docs/auto-learning-design.md](docs/auto-learning-design.md)）：纯模型会话结束后从不主动沉淀（基线 0%），stop-learn 在标准场景完整捕获代码里看不出的项目决策，并在信噪比低的难场景精准区分团队规范与一次性偏好、不过度学习（两轮均 0% → 100%）。沉淀的知识按主题 wiki 组织——一个主题一页、新学习合并进对应主题页并去重，而非按日期堆文件；知识累积场景较日期文件 +40pp，详见 [docs/learnings-wiki.md](docs/learnings-wiki.md)。
 
 ## 测试
 

@@ -44,7 +44,7 @@ if (mode === 'hard') {
     rejectsTransientValidation: gen && !leakedValidation,
     rejectsTransientLogging: gen && !leakedConsoleLog,
     indexUpdated: /\]\([^)]*\.md\)/.test(indexText),
-    formatOk: /title:/i.test(corpus) && /(context|rule)/i.test(corpus),
+    formatOk: /(title|topic):/i.test(corpus),
     concise: gen && entries.length <= 2,
   };
 } else {
@@ -53,7 +53,7 @@ if (mode === 'hard') {
     capturesIsoRule: /iso[\s-]?8601|toISOString|\butc\b/i.test(corpus),
     capturesCentsRule: /\bcents\b|integer cents|never float/i.test(corpus),
     indexUpdated: /\]\([^)]*\.md\)/.test(indexText),
-    formatOk: /title:/i.test(corpus) && /(context|rule)/i.test(corpus),
+    formatOk: /(title|topic):/i.test(corpus),
     concise: entries.length >= 1 && entries.length <= 3,
   };
 }

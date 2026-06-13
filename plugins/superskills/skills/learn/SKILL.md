@@ -1,11 +1,11 @@
 ---
 name: learn
-description: Persist durable learnings from the current session (user corrections, pitfalls and fixes, project decisions not visible in code) into .superskills/learnings/. Use when the user asks to summarize or persist learnings ("总结一下经验", "沉淀一下", "记住这个"), or when triggered automatically at session end.
+description: Persist durable learnings from the current session (user corrections, pitfalls and fixes, project decisions not visible in code) into the project knowledge wiki at .superskills/learnings/. Use when the user asks to summarize or persist learnings ("总结一下经验", "沉淀一下", "记住这个"), or when triggered automatically at session end.
 ---
 
 # Learn
 
-Extract knowledge worth keeping from this session and write it into the project's `.superskills/learnings/`. This is project-level memory: `.superskills/` always lives at the repository root (next to `.git`), never in a subdirectory you happen to be working in.
+Maintain the project's durable knowledge as a **topic wiki**, not a pile of dated entries. It lives at the repository root in `.superskills/learnings/` (next to `.git`, never in a subdirectory you happen to be working in) and is organized by **topic pages**: each `<topic>.md` collects everything known about one topic, deduplicated and cross-linked. `INDEX.md` is the catalog — one line per topic — and is the only file injected into future sessions.
 
 ## What qualifies
 
@@ -18,22 +18,23 @@ Do NOT persist: one-off task details, facts readable from the code, generic prog
 
 ## Steps
 
-1. Review the session and list candidate learnings. If none qualify, say so and stop — do not write anything.
-2. Read `.superskills/learnings/INDEX.md` (if present). If an existing entry already covers a candidate, update that file in place instead of creating a duplicate.
-3. Write each new learning to `.superskills/learnings/YYYY-MM-DD-<slug>.md` (create directories as needed):
+1. Review the session and list candidate learnings. If none qualify, say so and stop — write nothing.
+2. Read `.superskills/learnings/INDEX.md` (if present) to see the existing topic pages.
+3. For each learning, **merge it into the existing `<topic>.md` page it belongs to** — keep the page focused, remove redundancy, and cross-link related topics with `[[topic]]`. Only create a new `<topic>.md` when no existing topic fits. Never duplicate a rule that already lives on another page. A page looks like:
 
    ```markdown
    ---
-   title: <one-line title>
-   date: YYYY-MM-DD
+   topic: <topic name>
    tags: [<area>]
    ---
-   **Context**: when this applies
-   **Rule**: what to do (1-2 sentences)
-   **Why**: the reason (optional, one sentence)
+   # <Topic name>
+
+   **<when it applies>**: <the rule, 1-2 sentences> — <why, optional>.
+
+   Related: [[other-topic]]
    ```
 
-4. Update `.superskills/learnings/INDEX.md` — one line per entry:
-   `- [<title>](<filename>) — <when it applies>`
+4. **Always** update `INDEX.md` so it lists every topic page with a one-line summary:
+   `- [<Topic>](<topic>.md) — <what it covers>`
 
-Keep each learning under 15 lines. The INDEX is what gets auto-injected into future sessions, so write titles and contexts that make relevance obvious at a glance. Suggest committing `.superskills/` so the team shares the knowledge.
+The wiki should get denser, not longer, as knowledge accumulates: prefer editing an existing page over adding a file. `INDEX.md` is the only file auto-injected into future sessions, so a page missing from it is invisible — keep it a tight, navigable catalog. Suggest committing `.superskills/` so the team shares the knowledge.
