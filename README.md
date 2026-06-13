@@ -2,6 +2,8 @@
 
 **Less is more.** 极简 Coding Harness，以 Claude Code 与 Codex 双官方 plugin 形式交付：4 个 skill、3 个 hook、常驻成本约 418 token。Aone Copilot 由安装脚本覆盖。
 
+<p align="center"><img src="assets/hero.svg" alt="superskills — Less is more：删掉重型流程，保留 4 个产生复利的 skill 与项目级记忆闭环" width="880"></p>
+
 [English](README.en.md)
 
 ## 为什么

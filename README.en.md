@@ -2,6 +2,8 @@
 
 **Less is more.** A minimal coding harness, shipped as official plugins for both Claude Code and Codex: 4 skills, 3 hooks, ~418 always-on tokens. Aone Copilot is covered by the install script.
 
+<p align="center"><img src="assets/hero.svg" alt="superskills — Less is more: the heavyweight harness deleted, four compounding skills and the project-level memory loop kept" width="880"></p>
+
 [中文文档](README.md)
 
 ## Why
