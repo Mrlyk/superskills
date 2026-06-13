@@ -1,108 +1,118 @@
 # superskills
 
-**Less is more.** A minimal coding harness, shipped as a Claude Code plugin: 4 skills, 2 hooks, ~418 always-on tokens. Codex and Aone Copilot are covered by a single install script.
+**Less is more.** 极简 Coding Harness，以 Claude Code 与 Codex 双官方 plugin 形式交付：4 个 skill、2 个 hook、常驻成本约 418 token。Aone Copilot 由安装脚本覆盖。
 
-[中文文档](README.zh-CN.md)
+[English](README.en.md)
 
-## Why
+## 为什么
 
-Heavyweight harnesses made sense when models needed guardrails at every step: hard process gates, multi-stage reviews, forced TDD loops. As models get stronger, most of that scaffolding turns into overhead. What still compounds in value:
+重型 harness 在模型需要步步设防的年代是合理的：硬性流程门控、多阶段审查、强制 TDD 循环。随着模型能力增强，这些脚手架大多变成了负担。真正能持续产生复利的只有四件事：
 
-1. **Memory** — learnings from past sessions (corrections, pitfalls, decisions) that no model can infer from code
-2. **Conventions** — a minimal, evidenced spec of how this project actually works
-3. **Clarification** — resolving the genuinely undecided parts of a request before coding
-4. **A final test pass** — verified behavior, without ritualizing the path there
+1. **记忆** — 历史会话中的经验（纠正、踩坑、决策），任何模型都无法从代码中推断出来
+2. **规范** — 一份精简、有据可查的项目实际约定
+3. **澄清** — 写代码之前解决需求中真正悬而未决的部分
+4. **收尾测试** — 验证行为正确，且不把过程仪式化
 
-superskills keeps exactly these four things and deletes everything else.
+superskills 只保留这四件事，删掉其余一切。
 
-## Does it actually help?
+## 它真的有效吗
 
-Measured A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, deterministic graders — full methodology and per-check tables in [docs/benchmark.md](docs/benchmark.md):
+同任务、同模型（Sonnet 4.6）、真实端到端运行、确定性程序评分的 A/B 对照测量，完整方法学与分项数据见 [docs/benchmark.md](docs/benchmark.md)：
 
-| Scenario | Baseline (pure model) | With superskills | Δ |
-|----------|----------------------|------------------|---|
-| Cross-session memory (3 team decisions persisted as learnings) | 20% | 100% | **+80pp** |
-| Requirement clarification (ambiguous feature request) | 0% asked | 67% asked | **+67pp** |
-| Final test pass (2 planted bugs in "just developed" code) | 40% — tests locked the bugs in | 100% — both fixed at root cause | **+60pp** |
-| Convention adherence (rules scattered in docs) | 100% | 100% | 0pp, ~equal time |
-| Control: HumanEval/0–9 verbatim | 10/10 | 10/10 | **no regression** |
+| 场景 | 基线（纯模型） | 带 superskills | Δ |
+|------|--------------|----------------|---|
+| 跨会话记忆（3 条团队决策沉淀为 learnings） | 20% | 100% | **+80pp** |
+| 需求澄清（刻意模糊的功能请求） | 0% 提问 | 67% 提问 | **+67pp** |
+| 收尾测试（"刚开发完"的代码埋了 2 个 bug） | 40%，测试把 bug 锁死 | 100%，两个 bug 均根因修复 | **+60pp** |
+| 规范遵循（规则散落在文档里） | 100% | 100% | 0pp，耗时相近 |
+| 控制组：HumanEval/0–9 原题 | 10/10 | 10/10 | **无回归** |
 
-The pattern: when the knowledge is one obvious read away in a tiny fixture, a strong model already behaves (S1, control). The gains appear exactly where superskills operates — knowledge that exists nowhere in the repo (memory), questions nobody asked (clarification), and bugs that fresh tests happily cement in place (test pass). Baseline runs wrote passing test suites around both planted bugs in 3 of 3 trials; the test skill fixed both at root cause in 3 of 3.
+规律很清晰：当知识在一个十文件的小项目里一眼可见时，强模型本来就守规矩（S1、控制组）。增益恰好出现在 superskills 的工作域上——仓库里根本不存在的知识（记忆）、没人问过的问题（澄清）、以及新写的测试会欣然固化下来的 bug（收尾测试）。基线在三轮中全部围着两个埋好的 bug 写出了绿色测试套件；test skill 三轮全部把两个 bug 在生产代码层面根因修复。
 
-## What you get
+## 包含什么
 
-| Component | Kind | What it does |
-|-----------|------|--------------|
-| `superskills:discover` | skill | Scans an existing project and generates minimal spec files: `.superskills/conventions.md` (≤80 lines), `AGENTS.md`, `CLAUDE.md`. Refreshes them when stale, folding hardened learnings into conventions. |
-| `superskills:learn` | skill | Persists durable learnings (user corrections, pitfalls + fixes, invisible decisions) to `.superskills/learnings/`. |
-| `superskills:clarify` | skill | Surfaces only the questions whose answers change the implementation, with recommended answers, then starts coding. |
-| `superskills:test` | skill | One full unit-test pass after development is done. Result-driven, no fixed process. |
-| SessionStart hook | hook | Injects the learnings index into each session; reminds you when conventions drift >30 commits behind HEAD; suggests `discover` for projects with no AI specs. |
-| Stop hook | hook | Auto-learning: when a session did real work (≥5 user messages and file edits), asks the model once — with full session context — to persist anything durable before stopping. |
+| 组件 | 类型 | 作用 |
+|------|------|------|
+| `superskills:discover` | skill | 扫描存量项目，生成极简规范文件：`.superskills/conventions.md`（不超过 80 行）、`AGENTS.md`、`CLAUDE.md`；过期时刷新，并把已固化的 learnings 折叠进规范 |
+| `superskills:learn` | skill | 把值得长期保留的经验（用户纠正、踩坑与修复、代码中看不出的决策）沉淀到 `.superskills/learnings/` |
+| `superskills:clarify` | skill | 只提出会改变实现方案的问题，每个问题附推荐答案，澄清完立即开始编码 |
+| `superskills:test` | skill | 开发结束后组织一次完整的单元测试，只看结果，不固定流程 |
+| SessionStart hook | hook | 每次会话注入 learnings 索引；规范落后 HEAD 超过 30 个提交时提醒刷新；项目缺少 AI 规范文件时建议运行 discover |
+| Stop hook | hook | 自动总结：当会话做了实际工作（用户消息不少于 5 条且有文件修改）时，在结束前让模型带着完整上下文判断一次是否有值得沉淀的内容 |
 
-Everything shows up in the `/plugin` panel with per-component token costs. Total always-on cost: ~418 tokens.
+所有组件都会出现在 `/plugin` 面板中，并标注各自的 token 成本。常驻总成本约 418 token。
 
-### Project artifacts (committed to your repo)
+### 项目内产物（提交到仓库）
 
 ```
 .superskills/
-├── conventions.md        # single source of truth, ≤80 lines
+├── conventions.md        # 唯一事实源，不超过 80 行
 └── learnings/
-    ├── INDEX.md          # one line per learning, auto-injected at session start
+    ├── INDEX.md          # 每条经验一行，会话开始时自动注入
     └── 2026-06-12-use-pnpm.md
-AGENTS.md                 # ≤20 lines, points at .superskills/
+AGENTS.md                 # 不超过 20 行，指向 .superskills/
 CLAUDE.md                 # @AGENTS.md + @.superskills/conventions.md
 ```
 
-## Install
+## 安装
 
-### Claude Code (plugin, recommended)
+### Claude Code（plugin，推荐）
 
 ```
 /plugin marketplace add Mrlyk/superskills
 /plugin install superskills@superskills
 ```
 
-Or from the CLI: `claude plugin marketplace add Mrlyk/superskills && claude plugin install superskills@superskills`. Hooks register automatically with the plugin; nothing touches your `settings.json`.
+也可以用 CLI：`claude plugin marketplace add Mrlyk/superskills && claude plugin install superskills@superskills`。hooks 随插件自动注册，不会改动你的 `settings.json`。
 
-### Codex / Aone Copilot
+### Codex（plugin）
+
+```bash
+git clone https://github.com/Mrlyk/superskills.git
+codex plugin marketplace add ./superskills
+codex plugin add superskills@superskills
+```
+
+或在克隆目录内运行 `./install.sh`（检测到支持 plugin 的 codex CLI 时自动走相同流程，老版本 CLI 自动回退为自定义 prompts）。注意保留克隆目录，Codex 从该目录解析插件。
+
+### Aone Copilot
 
 ```bash
 git clone https://github.com/Mrlyk/superskills.git && cd superskills
-./install.sh              # autodetects ~/.codex and ~/.aone_copilot
+./install.sh              # 自动检测 ~/.aone_copilot（与 ~/.codex）
 ```
 
-| Tool | Skills | Hooks (auto-learning + injection) |
+| 工具 | Skills | Hooks（自动总结 + 注入） |
 |------|--------|------|
-| Claude Code | plugin: `/superskills:discover` etc. | yes |
-| Aone Copilot | `~/.aone_copilot/skills/ss-*` | yes |
-| Codex | `~/.codex/prompts/ss-*.md` (custom prompts) | no — relies on `AGENTS.md` pointers |
+| Claude Code | plugin：`superskills:discover` 等 | 支持 |
+| Codex | plugin：`superskills:discover` 等 | 不支持（Codex plugin 无 hook 机制），自动总结改用手动 learn |
+| Aone Copilot | `~/.aone_copilot/skills/ss-*` | 支持 |
 
-`./install.sh --tools claude` remains available as a legacy settings-based install for environments without marketplace access. `--uninstall` reverses everything and preserves your own settings.
+无法访问 marketplace 的环境可用 `./install.sh --tools claude` 做传统 settings 安装。`--uninstall` 可完整卸载并保留你自己的配置。
 
-Then, in each project, run the discover skill once and commit the generated files.
+安装后，在每个项目里运行一次 discover skill，把生成的文件提交即可。
 
-## How knowledge flows back in
+## 沉淀的知识如何被利用
 
-Two channels, chosen so the core works even without hooks:
+两条通道，保证核心机制在没有 hook 的工具里也能工作：
 
-- **Conventions** load through file references: `CLAUDE.md` imports them for Claude Code and Aone Copilot; `AGENTS.md` instructs Codex to read them. Zero hook dependency, works in every tool.
-- **Learnings** load as an index via the SessionStart hook (Claude Code / Aone Copilot). The model reads a one-line-per-entry index and opens a full entry only when relevant — past knowledge costs a few hundred tokens, not thousands.
+- **规范**走文件引用：Claude Code 和 Aone Copilot 通过 `CLAUDE.md` 的 import 加载；Codex 通过 `AGENTS.md` 中的指引读取。零 hook 依赖，所有工具通用。
+- **Learnings**走 SessionStart hook 注入索引（Claude Code / Aone Copilot）；Codex 无 hook 机制，由 `AGENTS.md` 中的指引引导模型查阅索引。模型看到的只有每条一行的索引，相关时才打开完整条目——历史知识的成本是几百个 token，而非几千。
 
-Learnings that harden into stable rules get folded into `conventions.md` by `discover`'s refresh mode, keeping the knowledge base from growing forever.
+已经固化为稳定规则的 learnings，会在 discover 的刷新模式中被折叠进 `conventions.md`，知识库不会无限膨胀。
 
-## Auto-learning design
+## 自动总结的设计
 
-Compared to observation-based systems (PreToolUse/PostToolUse capture plus background analyzers), superskills moves the judgment to the one moment it is cheap and reliable: session end. The Stop hook is a ~100-line filter that decides only *whether* the session is worth mining (enough messages, files actually changed, once per session, never loops); the model — which already holds the full session in context — decides *what* is worth keeping, with explicit permission to keep nothing. No observation files, no background processes, no per-tool-call overhead. And the output lands in the repo, so the whole team inherits it.
+与基于观察的方案（PreToolUse/PostToolUse 全量捕获加后台分析进程）相比，superskills 把判断挪到了唯一既便宜又可靠的时机：会话结束。Stop hook 是一个约 100 行的过滤器，只判断这个会话*值不值得*总结（消息够多、确实改了文件、每个会话只触发一次、绝不循环）；而*总结什么*交给模型——它本来就持有完整会话上下文，并且被明确允许"无可沉淀就什么都不写"。没有观察文件、没有后台进程、没有逐工具调用的开销。产出直接落在项目仓库里，整个团队共享。
 
-## Testing
+## 测试
 
 ```bash
-tests/run.sh              # hook + installer + plugin-structure tests (no model calls)
-tests/run.sh --bench      # plus a smoke benchmark driving real `claude -p` runs
-tests/bench/run.sh        # the full A/B capability benchmark (~44 model runs)
+tests/run.sh              # hook + 安装脚本 + plugin 结构测试（不调用模型）
+tests/run.sh --bench      # 追加冒烟基准（真实 claude -p 运行）
+tests/bench/run.sh        # 完整 A/B 能力基准（约 44 次模型运行）
 ```
 
 ## License
 
-MIT. The benchmark control group vendors HumanEval problems (MIT, OpenAI) — see [tests/bench/humaneval/ATTRIBUTION.md](tests/bench/humaneval/ATTRIBUTION.md).
+MIT。基准控制组内置了 HumanEval 题目（MIT，OpenAI），见 [tests/bench/humaneval/ATTRIBUTION.md](tests/bench/humaneval/ATTRIBUTION.md)。

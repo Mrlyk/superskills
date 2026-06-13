@@ -107,7 +107,7 @@ fi
 
 echo "== benchmark 3: injected index reaches a fresh session =="
 out="$(printf '{"session_id":"bench","source":"startup","cwd":"%s"}' "$FIX" \
-  | node "$REPO_DIR/hooks/session-start.js")"
+  | node "$REPO_DIR/plugins/superskills/hooks/session-start.js")"
 [[ "$out" == *"pnpm"* ]] && ok "session-start injects the learning index" || fail "session-start did not inject index"
 
 echo

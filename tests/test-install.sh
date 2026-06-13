@@ -6,6 +6,8 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home"
+# Hermetic: force the prompts fallback so tests never invoke the real codex CLI.
+export SUPERSKILLS_CODEX_MODE=prompts
 mkdir -p "$HOME/.claude" "$HOME/.codex" "$HOME/.aone_copilot"
 
 PASS=0; FAIL=0

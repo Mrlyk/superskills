@@ -42,12 +42,12 @@ make_transcript() { # file n_user with_edit
 
 run_stop() { # session transcript cwd [active]
   printf '{"session_id":"%s","transcript_path":"%s","cwd":"%s","stop_hook_active":%s}' \
-    "$1" "$2" "$3" "${4:-false}" | node "$REPO_DIR/hooks/stop-learn.js"
+    "$1" "$2" "$3" "${4:-false}" | node "$REPO_DIR/plugins/superskills/hooks/stop-learn.js"
 }
 
 run_session_start() { # cwd
   printf '{"session_id":"s","source":"startup","cwd":"%s"}' "$1" \
-    | node "$REPO_DIR/hooks/session-start.js"
+    | node "$REPO_DIR/plugins/superskills/hooks/session-start.js"
 }
 
 echo "== stop-learn.js =="
@@ -76,7 +76,7 @@ NOGIT="$TMP/nogit"; mkdir -p "$NOGIT"
 out="$(run_stop sess-5 "$T" "$NOGIT")"
 assert_empty "non-git cwd does not trigger" "$out"
 
-out="$(echo 'not json' | node "$REPO_DIR/hooks/stop-learn.js")"
+out="$(echo 'not json' | node "$REPO_DIR/plugins/superskills/hooks/stop-learn.js")"
 assert_empty "malformed stdin is silent" "$out"
 
 echo "== session-start.js =="

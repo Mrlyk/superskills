@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "superskills",
-      "source": "./",
+      "source": "./plugins/superskills",
       "description": "Less is more: minimal coding harness — self-learning, convention discovery, clarification, final test pass."
     }
   ]

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# superskills installer for tools without Claude Code plugin support.
+# superskills installer for tools that cannot use the marketplace one-liners.
 #
 #   ./install.sh                       # autodetect: Codex (~/.codex), Aone Copilot (~/.aone_copilot)
 #   ./install.sh --tools codex,aone
@@ -7,9 +7,13 @@
 #                                      #   /plugin marketplace add Mrlyk/superskills)
 #   ./install.sh --all                 # codex + aone + claude(legacy)
 #   ./install.sh --uninstall [--tools ...]
+#
+# Codex: installs the real Codex plugin via `codex plugin` when available
+# (set SUPERSKILLS_CODEX_MODE=prompts to force the custom-prompts fallback).
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_DIR="$REPO_DIR/plugins/superskills"
 SKILLS=(learn discover clarify test)   # installed as ss-<name> to avoid collisions
 HOOK_FILES=(session-start.js stop-learn.js)
 
@@ -23,7 +27,7 @@ while [[ $# -gt 0 ]]; do
     --all) ALL=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     -h|--help)
-      sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 1 ;;
   esac
@@ -122,7 +126,7 @@ EOF
 copy_skill_prefixed() { # src-skill dest-dir
   local s="$1" dest="$2"
   mkdir -p "$dest"
-  sed "s/^name: $s\$/name: ss-$s/" "$REPO_DIR/skills/$s/SKILL.md" > "$dest/SKILL.md"
+  sed "s/^name: $s\$/name: ss-$s/" "$PLUGIN_DIR/skills/$s/SKILL.md" > "$dest/SKILL.md"
 }
 
 install_claude_like() {
@@ -133,7 +137,7 @@ install_claude_like() {
     copy_skill_prefixed "$s" "$base/skills/ss-$s"
   done
   for h in "${HOOK_FILES[@]}"; do
-    cp "$REPO_DIR/hooks/$h" "$base/superskills/hooks/$h"
+    cp "$PLUGIN_DIR/hooks/$h" "$base/superskills/hooks/$h"
   done
   merge_settings "$base" install
 }
@@ -145,17 +149,41 @@ uninstall_claude_like() {
   [[ -f "$base/settings.json" ]] && merge_settings "$base" uninstall
 }
 
-# Codex has no hooks; skills become custom prompts (frontmatter stripped).
-install_codex() {
+codex_plugin_capable() {
+  [[ "${SUPERSKILLS_CODEX_MODE:-plugin}" != prompts ]] \
+    && command -v codex >/dev/null 2>&1 \
+    && codex plugin --help >/dev/null 2>&1
+}
+
+# Native Codex plugin install: register this repo as a marketplace, then add.
+install_codex_plugin() {
+  if ! codex plugin marketplace list 2>/dev/null | grep -q "superskills"; then
+    codex plugin marketplace add "$REPO_DIR" >/dev/null
+  fi
+  if ! codex plugin list 2>/dev/null | grep -q "superskills"; then
+    codex plugin add superskills@superskills >/dev/null
+  fi
+  echo "superskills installed for codex as a plugin (marketplace: $REPO_DIR)"
+  echo "note: keep this clone in place; Codex resolves the plugin from it."
+}
+
+uninstall_codex_plugin() {
+  codex plugin remove superskills >/dev/null 2>&1 || true
+  codex plugin marketplace remove superskills >/dev/null 2>&1 || true
+}
+
+# Fallback for Codex CLIs without plugin support: custom prompts, no hooks.
+install_codex_prompts() {
   local base="$1"
   mkdir -p "$base/prompts"
   for s in "${SKILLS[@]}"; do
     awk 'BEGIN{fm=0} /^---$/{fm++; next} fm!=1' \
-      "$REPO_DIR/skills/$s/SKILL.md" > "$base/prompts/ss-$s.md"
+      "$PLUGIN_DIR/skills/$s/SKILL.md" > "$base/prompts/ss-$s.md"
   done
+  echo "superskills installed for codex as custom prompts ($base/prompts)"
 }
 
-uninstall_codex() {
+uninstall_codex_prompts() {
   local base="$1"
   for s in "${SKILLS[@]}"; do rm -f "$base/prompts/ss-$s.md"; done
 }
@@ -168,21 +196,29 @@ for t in "${TOOL_LIST[@]}"; do
   mkdir -p "$base"
   if [[ "$UNINSTALL" == 1 ]]; then
     case "$t" in
-      codex) uninstall_codex "$base" ;;
+      codex)
+        if codex_plugin_capable; then uninstall_codex_plugin; fi
+        uninstall_codex_prompts "$base"
+        ;;
       *) uninstall_claude_like "$base" ;;
     esac
     echo "superskills removed from $t ($base)"
   else
     case "$t" in
-      codex) install_codex "$base" ;;
+      codex)
+        if codex_plugin_capable; then install_codex_plugin; else install_codex_prompts "$base"; fi
+        ;;
       claude)
         install_claude_like "$base"
+        echo "superskills installed for claude ($base)"
         echo "note: legacy install for Claude Code; the plugin is preferred:" >&2
         echo "  /plugin marketplace add Mrlyk/superskills && /plugin install superskills@superskills" >&2
         ;;
-      *) install_claude_like "$base" ;;
+      *)
+        install_claude_like "$base"
+        echo "superskills installed for $t ($base)"
+        ;;
     esac
-    echo "superskills installed for $t ($base)"
   fi
 done
 
@@ -191,8 +227,7 @@ if [[ "$UNINSTALL" != 1 ]]; then
 
 Done. In each project, run the discover skill once to generate
 .superskills/conventions.md + AGENTS.md + CLAUDE.md, then commit them.
-Skills: ss-discover / ss-learn / ss-clarify / ss-test
-Auto-learning hooks: active in Aone Copilot (and legacy Claude Code installs).
-Codex: skills are installed as custom prompts (/ss-learn etc.); no hooks.
+Auto-learning hooks: Claude Code (plugin) and Aone Copilot; Codex has no hook
+mechanism, so auto-learning is unavailable there — use the learn skill manually.
 EOS
 fi
