@@ -23,15 +23,15 @@ A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, determinis
 
 | Scenario | Baseline (pure model) | With superskills | Δ |
 |----------|----------------------|------------------|---|
-| Cross-session memory (3 team decisions persisted as learnings) | 20% | 100% | **+80pp** |
-| Requirement clarification (ambiguous feature request) | 0% asked | 67% asked | **+67pp** |
+| Auto-learning · recall (persists code-invisible decisions) | 0% | 100% | **+100pp** |
+| Auto-learning · precision (keeps the rule, drops throwaways under noise) | 0% | 100% | **+100pp** |
+| Cross-session memory (reuses persisted team decisions) | 20% | 100% | **+80pp** |
+| Requirement clarification (asked-before-guessing rate) | 0% | 67% | **+67pp** |
 | Final test pass (2 planted bugs in "just developed" code) | 40% | 100% | **+60pp** |
 | Convention adherence (rules scattered in docs) | 100% | 100% | even |
 | HumanEval hard subset (canonical `check`) | 40% | 50% | **+10pp** |
 | HumanEval+ hard subset (EvalPlus, full-range, 8 trials) | 20.5% | 30.7% | **+10pp** |
 | Control: HumanEval/0–9 verbatim | 10/10 | 10/10 | **no regression** |
-
-The gains appear exactly where superskills operates: knowledge that exists nowhere in the repo (memory), questions nobody asked (clarification), and bugs that fresh tests happily cement in place (test pass). On community benchmarks, the final-test-pass capability made automatic by a hook drives a single-shot model to actually run its own code, converting a portion of the baseline's failures to passes — HumanEval/154 (0/8 → 6/8) is the clearest single case. Honest residual: the remaining failures need a default the spec never states or an algorithm the model misunderstood, and on a couple of problems forced verification slightly regresses. HumanEval+ is the regime where a harness has the least leverage, so a net +10pp is expected; superskills' large gains live on the memory, clarification, and test-pass capabilities it is actually built for.
 
 ## What you get
 
