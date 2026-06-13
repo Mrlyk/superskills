@@ -33,35 +33,6 @@ A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, determinis
 | HumanEval+ hard subset (EvalPlus, full-range, 8 trials) | 20.5% | 30.7% | **+10pp** |
 | Control: HumanEval/0–9 verbatim | 10/10 | 10/10 | **no regression** |
 
-## What you get
-
-| Component | Kind | What it does |
-|-----------|------|--------------|
-| `superskills:discover` | skill | Scans an existing project and generates minimal spec files: `.superskills/conventions.md` (≤80 lines), `AGENTS.md`, `CLAUDE.md`. Refreshes them when stale, folding hardened learnings into conventions. |
-| `superskills:learn` | skill | Persists durable learnings (user corrections, pitfalls + fixes, invisible decisions) to `.superskills/learnings/`. |
-| `superskills:clarify` | skill | Surfaces only the questions whose answers change the implementation, with recommended answers, then starts coding. |
-| `superskills:test` | skill | One full unit-test pass after development is done. Result-driven, no fixed process. |
-| SessionStart hook | hook | Injects the learnings index into each session; reminds you when conventions drift >30 commits behind HEAD; suggests `discover` for projects with no AI specs. |
-| Stop hook (verify) | hook | Verify-before-done: if the session edited code but never executed it afterwards, blocks the stop once and demands a real run — documented examples plus boundary cases — with root-cause fixes. |
-| Stop hook (learn) | hook | Auto-learning: when a session did real work (≥5 user messages and file edits), asks the model once — with full session context — to persist anything durable before stopping. |
-
-Everything shows up in the `/plugin` panel with per-component token costs. Total always-on cost: ~418 tokens.
-
-### Project artifacts (committed to your repo)
-
-```
-.superskills/
-├── conventions.md        # single source of truth, ≤80 lines
-└── learnings/            # topic wiki: one page per topic, merged + deduplicated
-    ├── INDEX.md          # catalog, one line per topic, auto-injected at session start
-    ├── timestamps.md     # topic page (frontmatter + rules + [[cross-links]])
-    └── money.md
-AGENTS.md                 # ≤20 lines, points at .superskills/
-CLAUDE.md                 # @AGENTS.md + @.superskills/conventions.md
-```
-
-All persisted knowledge always lives at the project repository root — project-level memory, independent of how superskills was installed.
-
 ## Install
 
 ### Claude Code (plugin, recommended)
@@ -102,18 +73,43 @@ To enable superskills in a single project without touching your global setup: in
 
 `./install.sh --tools claude` remains a legacy settings-based install for environments without marketplace access. `--uninstall` reverses everything and preserves your own settings. Then, in each project, run the discover skill once and commit the generated files.
 
+## What you get
+
+| Component | Kind | What it does |
+|-----------|------|--------------|
+| `superskills:discover` | skill | Scans an existing project and generates minimal spec files: `.superskills/conventions.md` (≤80 lines), `AGENTS.md`, `CLAUDE.md`. Refreshes them when stale, folding hardened learnings into conventions. |
+| `superskills:learn` | skill | Persists durable learnings (user corrections, pitfalls + fixes, invisible decisions) to `.superskills/learnings/`. |
+| `superskills:clarify` | skill | Surfaces only the questions whose answers change the implementation, with recommended answers, then starts coding. |
+| `superskills:test` | skill | One full unit-test pass after development is done. Result-driven, no fixed process. |
+| SessionStart hook | hook | Injects the learnings index into each session; reminds you when conventions drift >30 commits behind HEAD; suggests `discover` for projects with no AI specs. |
+| Stop hook (verify) | hook | Verify-before-done: if the session edited code but never executed it afterwards, blocks the stop once and demands a real run — documented examples plus boundary cases — with root-cause fixes. |
+| Stop hook (learn) | hook | Auto-learning: when a session did real work (≥5 user messages and file edits), asks the model once — with full session context — to persist anything durable before stopping. |
+
+Everything shows up in the `/plugin` panel with per-component token costs. Total always-on cost: ~418 tokens.
+
+### Project artifacts (committed to your repo)
+
+```
+.superskills/
+├── conventions.md        # single source of truth, ≤80 lines
+└── learnings/            # topic wiki: one page per topic, merged + deduplicated
+    ├── INDEX.md          # catalog, one line per topic, auto-injected at session start
+    ├── timestamps.md     # topic page (frontmatter + rules + [[cross-links]])
+    └── money.md
+AGENTS.md                 # ≤20 lines, points at .superskills/
+CLAUDE.md                 # @AGENTS.md + @.superskills/conventions.md
+```
+
+All persisted knowledge always lives at the project repository root — project-level memory, independent of how superskills was installed.
+
 ## How knowledge flows back in
 
 Two channels, chosen so the core works even without hooks:
 
 - **Conventions** load through file references: `CLAUDE.md` imports them for Claude Code and Aone Copilot; `AGENTS.md` instructs Codex to read them. Zero hook dependency, works in every tool.
-- **Learnings** load as an index via the SessionStart hook (Claude Code / Aone Copilot); Codex has no hook mechanism, so its `AGENTS.md` pointer guides the model to the index instead. The model reads a one-line-per-entry index and opens a full entry only when relevant — past knowledge costs a few hundred tokens, not thousands.
+- **Learnings** load as an index via the SessionStart hook (Claude Code / Aone Copilot); Codex has no hook mechanism, so its `AGENTS.md` pointer guides the model to the index instead. The model reads a one-line-per-topic index and opens a full topic page only when relevant — past knowledge costs a few hundred tokens, not thousands.
 
-Learnings that harden into stable rules get folded into `conventions.md` by `discover`'s refresh mode, keeping the knowledge base from growing forever.
-
-## Auto-learning design
-
-The judgment of *whether* a session is worth mining lands at the one moment it is cheap and reliable: session end. The Stop hook is a ~100-line filter that decides only that (enough messages, files actually changed, once per session, never loops); the model — which already holds the full session in context — decides *what* is worth keeping, with explicit permission to keep nothing. No observation files, no background processes, no per-tool-call overhead, and the output lands in the repo so the whole team inherits it. This is an evidence-backed choice (full reasoning and data in [docs/auto-learning-design.en.md](docs/auto-learning-design.en.md)): the pure model never persists anything on its own (0% baseline), while stop-learn captures the code-invisible decisions in the standard case and, under low signal-to-noise, precisely separates a team convention from throwaway one-offs without over-learning (both rounds 0% → 100%). Learnings are organized as a topic wiki — one page per topic, new learnings merged in and deduplicated rather than piled up by date — which beats dated files by +40pp on knowledge accumulation (see [docs/learnings-wiki.en.md](docs/learnings-wiki.en.md)).
+Learnings are organized as a topic wiki — one page per topic, new learnings merged in and deduplicated rather than piled up by date (see [docs/learnings-wiki.en.md](docs/learnings-wiki.en.md)). Those that harden into stable rules get folded into `conventions.md` by `discover`'s refresh mode, keeping the knowledge base from growing forever.
 
 ## Testing
 

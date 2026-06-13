@@ -33,35 +33,6 @@ superskills 只保留这四件事，删掉其余一切。
 | HumanEval+ 困难子集（EvalPlus 全量，8 次） | 20.5% | 30.7% | **+10pp** |
 | 控制组：HumanEval/0–9 原题 | 10/10 | 10/10 | **无回归** |
 
-## 包含什么
-
-| 组件 | 类型 | 作用 |
-|------|------|------|
-| `superskills:discover` | skill | 扫描存量项目，生成极简规范文件：`.superskills/conventions.md`（不超过 80 行）、`AGENTS.md`、`CLAUDE.md`；过期时刷新，并把已固化的 learnings 折叠进规范 |
-| `superskills:learn` | skill | 把值得长期保留的经验（用户纠正、踩坑与修复、代码中看不出的决策）沉淀到 `.superskills/learnings/` |
-| `superskills:clarify` | skill | 只提出会改变实现方案的问题，每个问题附推荐答案，澄清完立即开始编码 |
-| `superskills:test` | skill | 开发结束后组织一次完整的单元测试，只看结果，不固定流程 |
-| SessionStart hook | hook | 每次会话注入 learnings 索引；规范落后 HEAD 超过 30 个提交时提醒刷新；项目缺少 AI 规范文件时建议运行 discover |
-| Stop hook（verify） | hook | 完成前验证：若会话改了代码却从未执行过，阻止收尾一次并要求真实运行——文档示例加边界用例——按根因修复 |
-| Stop hook（learn） | hook | 自动总结：当会话做了实际工作（用户消息不少于 5 条且有文件修改）时，在结束前让模型带着完整上下文判断一次是否有值得沉淀的内容 |
-
-所有组件都会出现在 `/plugin` 面板中，并标注各自的 token 成本。常驻总成本约 418 token。
-
-### 项目内产物（提交到仓库）
-
-```
-.superskills/
-├── conventions.md        # 唯一事实源，不超过 80 行
-└── learnings/            # 主题 wiki：一个主题一页，合并去重
-    ├── INDEX.md          # 主题目录，每主题一行，会话开始时自动注入
-    ├── timestamps.md     # 主题页（frontmatter + 规则 + [[交叉链接]]）
-    └── money.md
-AGENTS.md                 # 不超过 20 行，指向 .superskills/
-CLAUDE.md                 # @AGENTS.md + @.superskills/conventions.md
-```
-
-所有沉淀始终写在项目仓库根目录，属于项目级记忆，与安装方式无关。
-
 ## 安装
 
 ### Claude Code（plugin，推荐）
@@ -102,18 +73,43 @@ git clone https://github.com/Mrlyk/superskills.git && cd superskills
 
 无法访问 marketplace 的环境可用 `./install.sh --tools claude` 做传统 settings 安装。`--uninstall` 完整卸载并保留你自己的配置。安装后在每个项目里运行一次 discover skill，把生成的文件提交即可。
 
+## 包含什么
+
+| 组件 | 类型 | 作用 |
+|------|------|------|
+| `superskills:discover` | skill | 扫描存量项目，生成极简规范文件：`.superskills/conventions.md`（不超过 80 行）、`AGENTS.md`、`CLAUDE.md`；过期时刷新，并把已固化的 learnings 折叠进规范 |
+| `superskills:learn` | skill | 把值得长期保留的经验（用户纠正、踩坑与修复、代码中看不出的决策）沉淀到 `.superskills/learnings/` |
+| `superskills:clarify` | skill | 只提出会改变实现方案的问题，每个问题附推荐答案，澄清完立即开始编码 |
+| `superskills:test` | skill | 开发结束后组织一次完整的单元测试，只看结果，不固定流程 |
+| SessionStart hook | hook | 每次会话注入 learnings 索引；规范落后 HEAD 超过 30 个提交时提醒刷新；项目缺少 AI 规范文件时建议运行 discover |
+| Stop hook（verify） | hook | 完成前验证：若会话改了代码却从未执行过，阻止收尾一次并要求真实运行——文档示例加边界用例——按根因修复 |
+| Stop hook（learn） | hook | 自动总结：当会话做了实际工作（用户消息不少于 5 条且有文件修改）时，在结束前让模型带着完整上下文判断一次是否有值得沉淀的内容 |
+
+所有组件都会出现在 `/plugin` 面板中，并标注各自的 token 成本。常驻总成本约 418 token。
+
+### 项目内产物（提交到仓库）
+
+```
+.superskills/
+├── conventions.md        # 唯一事实源，不超过 80 行
+└── learnings/            # 主题 wiki：一个主题一页，合并去重
+    ├── INDEX.md          # 主题目录，每主题一行，会话开始时自动注入
+    ├── timestamps.md     # 主题页（frontmatter + 规则 + [[交叉链接]]）
+    └── money.md
+AGENTS.md                 # 不超过 20 行，指向 .superskills/
+CLAUDE.md                 # @AGENTS.md + @.superskills/conventions.md
+```
+
+所有沉淀始终写在项目仓库根目录，属于项目级记忆，与安装方式无关。
+
 ## 沉淀的知识如何被利用
 
 两条通道，保证核心机制在没有 hook 的工具里也能工作：
 
 - **规范**走文件引用：Claude Code 和 Aone Copilot 通过 `CLAUDE.md` 的 import 加载；Codex 通过 `AGENTS.md` 中的指引读取。零 hook 依赖，所有工具通用。
-- **Learnings**走 SessionStart hook 注入索引（Claude Code / Aone Copilot）；Codex 无 hook 机制，由 `AGENTS.md` 指引模型查阅索引。模型看到的只有每条一行的索引，相关时才打开完整条目——历史知识的成本是几百个 token，而非几千。
+- **Learnings**走 SessionStart hook 注入索引（Claude Code / Aone Copilot）；Codex 无 hook 机制，由 `AGENTS.md` 指引模型查阅索引。模型看到的只有每主题一行的索引，相关时才打开完整主题页——历史知识的成本是几百个 token，而非几千。
 
-已固化为稳定规则的 learnings，会在 discover 的刷新模式中折叠进 `conventions.md`，知识库不会无限膨胀。
-
-## 自动总结的设计
-
-"这个会话值不值得总结"的判断，放在唯一既便宜又可靠的时机：会话结束。Stop hook 是一个约 100 行的过滤器，只判断会话*值不值得*总结（消息够多、确实改了文件、每个会话只触发一次、绝不循环）；而*总结什么*交给模型——它本来就持有完整会话上下文，并被明确允许"无可沉淀就什么都不写"。没有观察文件、没有后台进程、没有逐工具调用的开销，产出直接落在仓库里供全队共享。这是基准支撑的选择（完整推演与数据见 [docs/auto-learning-design.md](docs/auto-learning-design.md)）：纯模型会话结束后从不主动沉淀（基线 0%），stop-learn 在标准场景完整捕获代码里看不出的项目决策，并在信噪比低的难场景精准区分团队规范与一次性偏好、不过度学习（两轮均 0% → 100%）。沉淀的知识按主题 wiki 组织——一个主题一页、新学习合并进对应主题页并去重，而非按日期堆文件；知识累积场景较日期文件 +40pp，详见 [docs/learnings-wiki.md](docs/learnings-wiki.md)。
+Learnings 以主题 wiki 组织——一个主题一页、新学习合并进对应主题页并去重，而非按日期堆文件（详见 [docs/learnings-wiki.md](docs/learnings-wiki.md)）。已固化为稳定规则的 learnings，会在 discover 的刷新模式中折叠进 `conventions.md`，知识库不会无限膨胀。
 
 ## 测试
 
