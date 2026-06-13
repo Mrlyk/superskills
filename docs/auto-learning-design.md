@@ -1,5 +1,7 @@
 # 自动总结：为什么用 Stop hook
 
+[English](auto-learning-design.en.md)
+
 superskills 的自动总结只用一个约 100 行的 Stop hook。一个自然的反问是：要捕获会话里的经验，为什么不在每次工具调用时（PreToolUse/PostToolUse）观察、再用后台进程离线分析？本文说明这个设计选择，以及支撑它的基准数据——这是 "Less is more" 落到单个决策上的样子。
 
 ## 两种设计

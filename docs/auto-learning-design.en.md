@@ -1,5 +1,7 @@
 # Auto-learning: why a Stop hook
 
+[中文](auto-learning-design.md)
+
 superskills does auto-learning with a single ~100-line Stop hook. A natural objection: to capture the lessons in a session, why not observe at every tool call (PreToolUse/PostToolUse) and mine them offline with a background process? This note explains the design choice and the benchmark data behind it — it is "Less is more" applied to one decision.
 
 ## Two designs
