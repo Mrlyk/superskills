@@ -196,10 +196,11 @@ if [[ "${#HARD[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-echo "== phase 2: measuring ${#HARD[@]} problems x 2 arms x $TRIALS trials =="
+ARMS="${BENCH_ARMS:-A B}"   # BENCH_ARMS=B re-measures only the optimized arm
+echo "== phase 2: measuring ${#HARD[@]} problems x [$ARMS] x $TRIALS trials =="
 [[ "$APPEND" == 1 ]] || : > "$RESULTS"
 for i in "${HARD[@]}"; do
-  for arm in A B; do
+  for arm in $ARMS; do
     for n in $(seq 1 "$TRIALS"); do
       throttle; measure_one "$i" "$arm" "$n" &
     done

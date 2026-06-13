@@ -118,13 +118,13 @@ Method, identical for both:
 
 ### What superskills contributes here
 
-Nothing in superskills knows anything about HumanEval. The active ingredient is the final-test-pass capability made automatic, which took three iterations to get right:
+Nothing in superskills knows anything about HumanEval. The active ingredient is the final-test-pass capability made automatic — and making a headless model actually verify took three attempts:
 
-1. **Round 1 — workflow pointer.** discover's `AGENTS.md` template gained a line: run one full test pass before declaring done. Result: ignored. In headless runs the model completes a "simple-looking" function in one shot and never reads the ceremony into action.
-2. **Round 2 — definition of done.** Stronger wording ("no exceptions", boundary-case checklist). Result: still ignored. Prose discipline does not survive contact with a model that believes the task is trivial. A context probe confirmed the instructions were loaded — they were seen and skipped.
-3. **Round 3 — enforcement in the harness.** A third hook, `stop-verify.js` (~100 lines): on Stop, if the session edited code files but never executed anything afterwards, block once and demand a real run — every documented example verbatim, empty input, and the boundary cases the spec implies — with root-cause fixes. Deterministic, once per session, loop-safe. Probe runs confirm the full loop: the model finishes, the hook blocks, the model writes a throwaway check, runs it, fixes, then finishes with run output.
+1. **Attempt 1 — workflow pointer.** discover's `AGENTS.md` template gained a line: run one full test pass before declaring done. Result: ignored. In headless runs the model completes a "simple-looking" function in one shot and never reads the ceremony into action.
+2. **Attempt 2 — definition of done.** Stronger wording ("no exceptions", boundary-case checklist). Result: still ignored. Prose discipline does not survive contact with a model that believes the task is trivial. A context probe confirmed the instructions were loaded — they were seen and skipped.
+3. **Attempt 3 — enforcement in the harness.** A hook, `stop-verify.js` (~100 lines): on Stop, if the session edited code files but never executed anything afterwards, block once and demand a real run with root-cause fixes. Deterministic, once per session, loop-safe. This is the one that fired.
 
-That is the project's thesis in miniature: as models get stronger, prose process gets skipped; the two places a harness still earns its keep are knowledge the model cannot have (memory, conventions) and a few deterministic enforcement points (verification). Rounds 1–2 shipped anyway (better wording costs nothing); round 3 is the mechanism that moves the number.
+That is the project's thesis in miniature: as models get stronger, prose process gets skipped; the two places a harness still earns its keep are knowledge the model cannot have (memory, conventions) and a few deterministic enforcement points (verification). The first two attempts shipped anyway (better wording costs nothing); the hook is the mechanism that moves the number.
 
 ### Results
 
@@ -144,7 +144,21 @@ That is the project's thesis in miniature: as models get stronger, prose process
 
 On problems the baseline cannot solve, superskills converts a portion to passes: +10pp under standard grading, +27pp under the stricter EvalPlus grading. The larger gap under EvalPlus is the point — that grader rewards exactly the boundary-case verification the hook forces. HumanEval/154 (0/3 → 3/3) is the clearest single case: the verify hook drove the model to test its own output and fix what it found.
 
-Honest residual: HumanEval/101 stays 0 in both arms. The planted failure is a trailing-separator edge case (`"a, b,"` → drop the empty tail); the model's self-generated checks did not always enumerate it, so the hook fires but the model still ships the bug. Enforcement makes the model verify; it does not guarantee the model imagines every edge case. That is the next round's problem, not a solved one. The mean-time columns also show arm B costs more wall-clock (it does real work the baseline skips) — the trade is latency for correctness.
+Honest residual: HumanEval/101 stays 0 in both arms. The planted failure is a trailing-separator edge case (`"a, b,"` → drop the empty tail); the model's self-generated checks did not always enumerate it, so the hook fires but the model still ships the bug. Enforcement makes the model verify; it does not guarantee the model imagines every edge case. The next section chases exactly this across three reason-tuning rounds and finds it is not a wording problem. The mean-time columns also show arm B costs more wall-clock (it does real work the baseline skips) — the trade is latency for correctness.
+
+### Tuning the hook's reason: three benchmark rounds
+
+After diagnosing why 101 still failed — the model used its own implementation's output as the "expected" value, then answered "all passed" without really running the degenerate input — two further rounds tried to fix that by rewording the hook's block reason. Same EvalPlus hard subset, arm B, 3 trials each:
+
+| Reason version | Words | EvalPlus hard pass@1 |
+|----------------|-------|----------------------|
+| Round 1 — concise (examples, empty, spec-implied boundaries, fix at root) | ~80 | **4/15 (27%)** |
+| Round 2 — longer (add: derive-expected-independently, paste-output, emphatic caps) | ~120 | 2/15 (13%) |
+| Round 3 — trimmed, keep only "derive the expected value yourself" | ~75 | 3/15 (20%) |
+
+More instruction made it worse. The longer reason pushed even the one reliably-won problem down (154: 3/3 → 2/3): a single-turn model that already believes the task is trivial skims a wall of verification ceremony and says "all passed" faster, not more carefully. Round 3 trimmed back and recovered most of the loss but never beat the original, so the shipped reason is Round 1's. The actionable result of three rounds is that the optimum was the first, simplest version — Less is more, measured.
+
+The residual failures are not a wording problem at all: 132 is an algorithm the model gets wrong (`is_nested`), and 101/151/163 hinge on an edge case the spec underdetermines (a trailing-separator default the docstring never shows). Enforcement can make a model verify; it cannot make a single-shot model invent an unstated default or repair an algorithm it misunderstood. stop-verify's real, repeatable win is the boundary-bug class — 154, where the implementation was already correct but untested — and that is where the +27pp came from.
 
 ## Reproducing
 
