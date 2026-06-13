@@ -1,90 +1,75 @@
-# Auto-learning: why Stop hook, not PreToolUse/PostToolUse
+# 自动总结：为什么用 Stop hook
 
-A design note prompted by a sharp question: ECC moved its continuous-learning capture from a Stop hook to PreToolUse/PostToolUse. Should superskills follow?
+superskills 的自动总结只用一个约 100 行的 Stop hook。一个自然的反问是：要捕获会话里的经验，为什么不在每次工具调用时（PreToolUse/PostToolUse）观察、再用后台进程离线分析？本文说明这个设计选择，以及支撑它的基准数据——这是 "Less is more" 落到单个决策上的样子。
 
-The answer is no, and the reason is instructive — it is the whole "Less is more" thesis applied to one decision.
+## 两种设计
 
-## What ECC actually changed, and why
+捕获会话经验有两条路：
 
-From ECC's own `continuous-learning-v2/SKILL.md` and git history:
+- **观察式**：每次工具调用都记录输入/输出，追加到一份按项目维护的观察日志，再由一个后台代理把原始观察聚类成带置信度的"指令"。优点是捕获完整——每一次工具调用、每一个"错误→修复"的微模式都不漏，还能跨会话离线挖掘。
+- **会话末判断式**（superskills 采用）：只在会话结束时判断一次。
 
-- **v1** observed with a **skill**. Skills are model-judgment triggered — ECC's own words: *"they fire ~50-80% of the time."* Probabilistic. Patterns get missed.
-- **v2** observes with **PreToolUse/PostToolUse hooks** — *"fire 100% of the time, deterministically. Every tool call is observed."* Each call's input/output is appended to a per-project `observations.jsonl`; a **background Haiku agent** later clusters those raw observations into confidence-scored "atomic instincts."
+观察式的代价写在它的实现里：每次工具调用都要启动一段观察脚本；一个带 PID 文件、信号节流、重入守卫的后台进程；观察日志要按大小轮转；要有多层守卫防止自动化/子代理会话污染数据；要对捕获流做敏感信息脱敏。这是一套强大的系统，却不是一套极简的系统。
 
-ECC's motivation is real and correct for ECC's goal: **capture reliability and completeness.** It wants every tool call, including the micro-patterns (tool sequences, error→fix loops) that a session-end summary would have already forgotten or compressed away, and it wants to mine them offline across sessions.
+## 为什么 superskills 选会话末判断
 
-## What that costs
+三点区别，让"观察式"的理由在这里不成立：
 
-The price of "observe every tool call" is visible all over ECC's implementation:
+1. **从一开始就是确定性的。** superskills 的 `stop-learn` 是确定性 hook——会话每次停止都触发。观察式常用来解决的"概率性触发会漏模式"问题，superskills 本就没有。
 
-- a ~500-line `observe.sh` spawned on **every** tool call;
-- a background observer process with a PID file, SIGUSR1 throttling, and a re-entrancy guard — which still hit a *"memory explosion"* bug (fixed in a dedicated commit);
-- `observations.jsonl` rotation at 10 MB;
-- a **5-layer guard** to stop automated/sub-agent sessions from polluting the data;
-- secret redaction on the captured stream;
-- and, tellingly, the observer ships **disabled by default** (`observer.enabled: false`).
+2. **不需要会话的第二份副本。** 观察日志存在的理由，是要拿到工具级微模式和跨会话离线聚类。superskills 只要持久、且代码里看不出的事实——用户纠正、踩坑、决策。这些本就在 Claude Code 持续写盘的 transcript（`transcript_path`）里。Stop hook 直接读它，不需要第二条捕获流、不需要轮转、不需要后台进程。
 
-That is a powerful system. It is not a minimal one.
+3. **它要修的失效模式在这里价值很低。** PreToolUse/PostToolUse 能在会话中途硬崩溃时存活，Stop hook 在进程被杀时可能不触发。但 superskills 只从做了实际工作的会话里学习，偶尔漏一次，下一个类似会话会再次浮现这条教训。为这种罕见、低成本的漏失付整套机器，正是 "Less is more" 要拒绝的交易。
 
-## Why superskills keeps the Stop hook
+所以设计是：一个约 100 行的确定性 Stop-hook 过滤器（消息够多、确实改了文件、每会话一次、循环安全），只判断会话*值不值得*挖掘；*留什么*交给本就持有完整会话的主模型，并明确允许"无可沉淀就什么都不写"。零后台进程、零观察文件、零守卫。
 
-Three distinctions make ECC's reasoning not apply here:
+## 这个问题暴露的盲点
 
-1. **superskills was never probabilistic.** ECC's v1 disease was the *skill* trigger. superskills' `stop-learn` is already a **deterministic hook** — it fires every time the session stops. The exact problem ECC switched hooks to solve, superskills never had. Switching to PreToolUse/PostToolUse would buy us nothing on that axis.
+不过这里确实有个真实缺口。能力基准的 S2 场景测的是模型*会不会用*已存在的 learnings（手写的 fixture），从没测过 `stop-learn` 到底*能不能生成*好的 learnings——闭环的上游那一半。
 
-2. **We don't need a second copy of the session.** ECC builds `observations.jsonl` because it wants tool-level micro-patterns and cross-session offline clustering. superskills wants only the durable, code-invisible facts — user corrections, pitfalls, decisions. Those are already in the transcript Claude Code persists to disk continuously (`transcript_path`). The Stop hook reads that. No second capture stream, no rotation, no background process.
+于是补了一个**自动总结生成基准**（`tests/bench/learn-auto.sh`）：回放一个已结束、且包含两条只在对话里出现的纠正的会话（ISO-8601 UTC 时间戳；整数分），追加 `stop-learn.js` 真实发出的 block reason，再给模型实际写出的 `.superskills/learnings/` 打分——两条规则都抓到了吗、更新索引了吗、保持格式了吗、够不够精简。Arm A 看到同一个会话但以中性收尾（无 hook reason），差距就是 hook 的贡献。
 
-3. **The failure mode it would fix is low-value here.** PreToolUse/PostToolUse survive a hard crash mid-session; a Stop hook may not fire if the process is killed. But superskills only learns from sessions that did real work, and a missed crash just means the next similar session re-surfaces the lesson. Paying ECC's entire apparatus to insure a rare, low-cost miss is exactly the trade "Less is more" refuses.
+## 结果
 
-So the design is: **a ~100-line deterministic Stop-hook filter** (enough messages, files actually changed, once per session, loop-safe) that decides only *whether* the session is worth mining, and hands *what to keep* to the main model, which already holds the full session. Zero background processes, zero observation files, zero guards. We get ECC v2's deterministic trigger and its full-context judgment, without its machinery.
+### 第 1 轮 — 标准难度（每臂 3 次，Sonnet 4.6）
 
-## The blind spot this question exposed
+一个已结束的会话，两条只在对话里说过的纠正（ISO-8601 UTC 时间戳；整数分）。
 
-There was, however, a real gap. The capability benchmark's S2 scenario measures whether the model *uses* learnings that already exist (a hand-authored fixture). It never measured whether `stop-learn` *generates* good learnings in the first place — the upstream half of the loop.
+| 指标 | 基线（中性收尾） | 带 superskills（stop-learn） |
+|------|-----------------|------------------------------|
+| 平均分 | **0%** | **100%** |
+| 生成了 learning 文件 | 0/3 | 3/3 |
+| 抓到 ISO-8601 规则 | 0/3 | 3/3 |
+| 抓到整数分规则 | 0/3 | 3/3 |
+| 更新了 INDEX.md | 0/3 | 3/3 |
+| frontmatter + 正文格式 | 0/3 | 3/3 |
+| 精简（≤3 文件） | 0/3 | 3/3 |
 
-So this round adds an **auto-learning generation benchmark** (`tests/bench/learn-auto.sh`): replay a finished session containing two corrections that exist only in the dialogue (ISO-8601 UTC timestamps; integer cents), append the **real** block-reason emitted by `stop-learn.js`, and grade the `.superskills/learnings/` the model actually writes — did it capture both rules, update the index, keep the format, stay concise. Arm A sees the same session with a neutral close (no hook reason); the gap is what the hook contributes.
+纯模型从不主动沉淀——做完任务就停。Stop-hook reason 把这彻底翻转：每一次都抓到了两条代码里看不出的决策，建好索引、格式正确、不堆砌。这正是 S2 只测了*消费*那一半的*生成*那一半。
 
-## Results
+### 第 2 轮 — 噪声下的精度（每臂 3 次）
 
-### Round 1 — standard difficulty (3 trials/arm, Sonnet 4.6)
+标准难度会饱和，于是第 2 轮像 HumanEval+ 那样加压：一个嘈杂会话，混入一条真正经过 code review 强制的团队规范（API 错误码必须用 `E_` 前缀）和两条绝不该被持久化的一次性指令（"先跳过校验，我后面加"；"今天先打到 console"）。这测的是*精度*——抓住持久规则、拒绝一次性指令——恰是一条过于热心的"持久化纠正与决策"指令容易过度学习的地方。
 
-One finished session, two corrections stated only in dialogue (ISO-8601 UTC timestamps; integer cents).
+| 指标 | 基线（中性收尾） | 带 superskills（stop-learn） |
+|------|-----------------|------------------------------|
+| 平均分 | **0%** | **100%** |
+| 生成了 learning 文件 | 0/3 | 3/3 |
+| 抓到 `E_` 前缀规范 | 0/3 | 3/3 |
+| 拒绝"跳过校验"一次性指令 | 0/3 | 3/3 |
+| 拒绝"今天先打 console"一次性指令 | 0/3 | 3/3 |
+| 更新了 INDEX.md | 0/3 | 3/3 |
+| frontmatter + 正文格式 | 0/3 | 3/3 |
+| 精简（≤2 文件） | 0/3 | 3/3 |
 
-| Metric | Baseline (neutral close) | With superskills (stop-learn) |
-|--------|--------------------------|-------------------------------|
-| Mean score | **0%** | **100%** |
-| Generated a learning file | 0/3 | 3/3 |
-| Captured the ISO-8601 rule | 0/3 | 3/3 |
-| Captured the integer-cents rule | 0/3 | 3/3 |
-| Updated INDEX.md | 0/3 | 3/3 |
-| Frontmatter + body format | 0/3 | 3/3 |
-| Concise (≤3 files) | 0/3 | 3/3 |
+每一次 superskills 试验都只持久化了**恰好一条** learning——`E_` 前缀规范，带 Context/Rule/Why——把两条一次性指令都留在外面。精度和召回都是 3/3：持有完整会话的模型，不靠任何置信度打分机器，就能把经过 code review 强制的团队规则和"先跳过、我后面弄"区分开。纯模型再一次什么都没沉淀。
 
-The pure model never persists anything on its own — it finishes the task and stops. The Stop-hook reason flips that completely: every trial captured both code-invisible decisions, indexed and formatted, without over-stuffing. This is the *generation* half of the loop that S2 only measured the *consumption* half of.
+（方法诚实记录：第一次难度运行把基线打到了 29%，因为 `reject-*` 检查给了空的 arm A "没泄漏"的免费分。那不是精度，是沉默——检查改为以"确实生成了文件"为前置条件后重跑，0% 才是修正后的基线。）
 
-### Round 2 — precision under noise (3 trials/arm)
+### 两轮说明了什么
 
-Standard difficulty saturates, so round 2 raises it the way HumanEval+ does: a noisy session that mixes one genuine, code-review-enforced team convention (API error codes must use the `E_` prefix) with two throwaway instructions that must NOT be persisted ("skip validation, I'll add it later"; "log to console just for today"). This tests *precision* — capture the durable rule, reject the one-offs — which is exactly where a too-eager "persist corrections and decisions" instruction can over-learn.
+两轮都在 superskills 一侧饱和——标准召回 0% → 100%，难场景精度 0% → 100%。优化的结论是*不需要改*：数据说明现有设计（确定性 Stop hook + 全上下文模型判断）已经把召回和精度都打满，再加观察式捕获、后台分析、置信度打分只会徒增成本而不动这两个数。对 superskills 而言，"Less is more" 在这里不是口号，是基准让我们保留的东西。
 
-| Metric | Baseline (neutral close) | With superskills (stop-learn) |
-|--------|--------------------------|-------------------------------|
-| Mean score | **0%** | **100%** |
-| Generated a learning file | 0/3 | 3/3 |
-| Captured the `E_` prefix convention | 0/3 | 3/3 |
-| Rejected the "skip validation" one-off | 0/3 | 3/3 |
-| Rejected the "log for today" one-off | 0/3 | 3/3 |
-| Updated INDEX.md | 0/3 | 3/3 |
-| Frontmatter + body format | 0/3 | 3/3 |
-| Concise (≤2 files) | 0/3 | 3/3 |
+## 一个保持诚实的已知限制
 
-Every superskills trial persisted **exactly one** learning — the `E_` prefix convention, with Context/Rule/Why — and left both throwaway instructions out. Precision and recall are both 3/3: the model that holds the full session distinguishes a code-review-enforced team rule from "skip validation, I'll do it later" without any confidence-scoring machinery. The pure model again persisted nothing.
-
-(Method honesty: the first hard run scored the baseline at 29% because the `reject-*` checks gave an empty arm A free credit for "not leaking." That is not precision, it is silence — the checks were gated on actually generating a file and the round re-run. 0% is the corrected baseline.)
-
-### What the two rounds say
-
-Both rounds saturate in superskills' favor — standard recall 0% → 100%, hard precision 0% → 100%. The optimization result is the *absence* of a needed change: the data says the current design (a deterministic Stop hook plus full-context model judgment) already maxes out both recall and precision, so adopting ECC's PreToolUse/PostToolUse capture, background analyzer, and confidence scoring would add real cost without moving these numbers. For superskills, "Less is more" is not a slogan here — it is what the benchmark told us to keep.
-
-## A known limitation, kept honest
-
-In headless single-turn `claude -p`, the hook's "≥5 user messages" gate never trips — there is only one turn. That is by design (the hook targets interactive multi-turn sessions, where corrections actually accumulate), but it means automated single-shot runs do not auto-learn. The benchmark above drives generation through the real hook reason rather than pretending otherwise.
+在 headless 单轮 `claude -p` 里，hook 的"≥5 条用户消息"门槛永远不会触发——只有一轮。这是设计使然（hook 面向交互式多轮会话，纠正才会在那里累积），但意味着自动化单次运行不会自动总结。上面的基准是用真实 hook reason 驱动生成的，没有回避这一点。

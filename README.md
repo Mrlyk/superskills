@@ -6,7 +6,7 @@
 
 [English](README.en.md)
 
-## 为什么
+## 设计哲学
 
 重型 harness 在模型需要步步设防的年代是合理的：硬性流程门控、多阶段审查、强制 TDD 循环。随着模型能力增强，这些脚手架大多变成了负担。真正能持续产生复利的只有四件事：
 
@@ -17,30 +17,21 @@
 
 superskills 只保留这四件事，删掉其余一切。
 
-## 它真的有效吗
+## 基准数据
 
-同任务、同模型（Sonnet 4.6）、真实端到端运行、确定性程序评分的 A/B 对照测量，完整方法学与分项数据见 [docs/benchmark.md](docs/benchmark.md)：
+同任务、同模型（Sonnet 4.6）、真实端到端运行、确定性程序评分的 A/B 对照。HumanEval 对强模型已基本饱和（洁净基线 164 题做对 162），所以社区标准做法是只取基线做不出的题，并用更严格的 EvalPlus 评分（每题约 80× 用例）。完整方法学、污染排查与分项数据见 [docs/benchmark.md](docs/benchmark.md)。
 
 | 场景 | 基线（纯模型） | 带 superskills | Δ |
 |------|--------------|----------------|---|
 | 跨会话记忆（3 条团队决策沉淀为 learnings） | 20% | 100% | **+80pp** |
 | 需求澄清（刻意模糊的功能请求） | 0% 提问 | 67% 提问 | **+67pp** |
-| 收尾测试（"刚开发完"的代码埋了 2 个 bug） | 40%，测试把 bug 锁死 | 100%，两个 bug 均根因修复 | **+60pp** |
-| 规范遵循（规则散落在文档里） | 100% | 100% | 0pp，耗时相近 |
+| 收尾测试（"刚开发完"的代码埋了 2 个 bug） | 40% | 100% | **+60pp** |
+| 规范遵循（规则散落在文档里） | 100% | 100% | 持平 |
+| HumanEval 困难子集（官方 check） | 40% | 50% | **+10pp** |
+| HumanEval+ 困难子集（EvalPlus 全量，11 题，8 次） | 20.5% | 30.7% | **+10pp** |
 | 控制组：HumanEval/0–9 原题 | 10/10 | 10/10 | **无回归** |
 
-规律很清晰：当知识在一个十文件的小项目里一眼可见时，强模型本来就守规矩（S1、控制组）。增益恰好出现在 superskills 的工作域上——仓库里根本不存在的知识（记忆）、没人问过的问题（澄清）、以及新写的测试会欣然固化下来的 bug（收尾测试）。基线在三轮中全部围着两个埋好的 bug 写出了绿色测试套件；test skill 三轮全部把两个 bug 在生产代码层面根因修复。
-
-### 社区基准：HumanEval 与 HumanEval+ 困难子集
-
-HumanEval 对 Sonnet 4.6 已基本饱和（洁净基线 164 题做对 162 题），所以光看通过率分不出差异。社区标准做法是只取基线做不出的题，并用更严格的评分。我们跑了两个公开基准（方法学、污染排查与完整数据见 [docs/benchmark.md](docs/benchmark.md)）：
-
-| 基准 | 困难集 | 基线 pass@1 | 带 superskills | Δ |
-|------|--------|------------|----------------|---|
-| HumanEval（官方 check） | 基线失败的 2 题 | 40% | 50% | **+10pp** |
-| HumanEval+（EvalPlus，约 80× 测试用例） | 基线失败的 5 题 | 0% | 27% | **+27pp** |
-
-superskills 对 HumanEval 一无所知，起作用的是被 hook 强制自动化的「收尾验证」能力（三次尝试才做对：纯文字指引被无视两轮，最终靠一个约 100 行的 `stop-verify` hook 确定性强制——改了代码却没运行就拦截一次，要求按文档示例与边界用例真实运行并根因修复）。EvalPlus 专门考察边界用例，提升更明显正说明了这点；HumanEval/154 从 0/3 到 3/3 是最直接的单题证据。随后又用三轮基准专门调优这个 hook 的 reason 措辞，结论是最初的简洁版最优：加长措辞（27%→13%）反而让单轮模型略读敷衍，精简加料（20%）也没超过原版，所以保留原版（详见 [docs/benchmark.md](docs/benchmark.md)）。这是 Less is more 在 prompt 工程上的实证。诚实记录：残留失败题（101 尾随分隔符是文档未定义的默认行为、132 是模型算法理解错）不是措辞能解决的——强制能让模型验证，但无法让它凭空想出规范没说的默认值或修对它本就理解错的算法。
+增益恰好出现在 superskills 的工作域：仓库里根本不存在的知识（记忆）、没人问过的问题（澄清）、新写的测试会欣然固化下来的 bug（收尾测试）。在社区基准上，被 hook 强制自动化的「收尾验证」让单轮模型真正运行自己的代码，把一部分基线做不出的题转为通过——HumanEval/154 从 0/8 到 6/8 是最直接的单题证据。诚实记录：残留失败题是规范未定义的默认值，或模型把算法本身理解错了，个别题强制验证反而略有回归；强制能让模型验证，但无法替它发明规范没写的默认值、或修对它本就理解错的算法。HumanEval+ 是 harness 杠杆最小的领域，净增益 +10pp 属意料之中；superskills 的大头增益在它真正为之而建的记忆、澄清、收尾测试上。
 
 ## 包含什么
 
@@ -68,6 +59,8 @@ AGENTS.md                 # 不超过 20 行，指向 .superskills/
 CLAUDE.md                 # @AGENTS.md + @.superskills/conventions.md
 ```
 
+所有沉淀始终写在项目仓库根目录，属于项目级记忆，与安装方式无关。
+
 ## 安装
 
 ### Claude Code（plugin，推荐）
@@ -77,7 +70,7 @@ CLAUDE.md                 # @AGENTS.md + @.superskills/conventions.md
 /plugin install superskills@superskills
 ```
 
-也可以用 CLI：`claude plugin marketplace add Mrlyk/superskills && claude plugin install superskills@superskills`。hooks 随插件自动注册，不会改动你的 `settings.json`。
+也可以用 CLI：`claude plugin marketplace add Mrlyk/superskills && claude plugin install superskills@superskills`。hooks 随插件自动注册，不改动你的 `settings.json`。
 
 ### Codex（plugin）
 
@@ -87,7 +80,7 @@ codex plugin marketplace add ./superskills
 codex plugin add superskills@superskills
 ```
 
-或在克隆目录内运行 `./install.sh`（检测到支持 plugin 的 codex CLI 时自动走相同流程，老版本 CLI 自动回退为自定义 prompts）。注意保留克隆目录，Codex 从该目录解析插件。
+或在克隆目录内运行 `./install.sh`（检测到支持 plugin 的 codex CLI 时走相同流程，老版本回退为自定义 prompts）。保留克隆目录，Codex 从该目录解析插件。
 
 ### Aone Copilot
 
@@ -96,27 +89,9 @@ git clone https://github.com/Mrlyk/superskills.git && cd superskills
 ./install.sh              # 自动检测 ~/.aone_copilot（与 ~/.codex）
 ```
 
-### 项目级安装（不影响用户全局）
+### 项目级安装
 
-上面的方式都是用户级（对所有项目生效）。只想在某个项目里启用、不动用户全局配置时，用项目级安装。
-
-Claude Code 官方支持安装作用域，在项目目录内执行：
-
-```
-/plugin marketplace add Mrlyk/superskills --scope project
-/plugin install superskills@superskills --scope project
-```
-
-这只会写入项目的 `.claude/settings.json`（`extraKnownMarketplaces` + `enabledPlugins` 两个条目），用户级配置零改动。把这个文件提交后，队友打开项目时 Claude Code 会自动提示安装并启用。只想自己用、不进版本库的话，把 `--scope project` 换成 `--scope local`（写入 `.claude/settings.local.json`）。
-
-也可以不依赖 claude CLI，用安装脚本一键完成（同时覆盖 Aone Copilot 的项目级安装）：
-
-```bash
-./install.sh --project /path/to/your-project    # 省略路径则为当前目录
-./install.sh --project /path/to/your-project --uninstall
-```
-
-它写入项目的 `.claude/settings.json`（与官方 `--scope project` 产物完全一致），并把 skills 和 hooks 复制进项目的 `.aone_copilot/`（hook 路径通过 `$CLAUDE_PROJECT_DIR` 解析，提交后全队可用）。Codex 的 plugin 配置只有全局一档，没有项目作用域；Codex 的项目级覆盖本来就由 `AGENTS.md` 指引 + `.superskills/` 承担（运行 discover 即可）。
+只想在某个项目启用、不动用户全局：Claude Code 在项目内执行 `/plugin marketplace add Mrlyk/superskills --scope project` 与 `/plugin install superskills@superskills --scope project`，只写入项目的 `.claude/settings.json`，提交后队友自动获得安装提示。不依赖 claude CLI 时用 `./install.sh --project /path/to/project`（产物与官方 `--scope project` 一致，并覆盖 Aone Copilot 的 `.aone_copilot/`）。
 
 | 工具 | Skills | Hooks（自动总结 + 注入） | 项目级安装 |
 |------|--------|------|------|
@@ -124,24 +99,20 @@ Claude Code 官方支持安装作用域，在项目目录内执行：
 | Codex | plugin：`superskills:discover` 等 | 不支持（Codex plugin 无 hook 机制），自动总结改用手动 learn | 无 plugin 项目作用域，靠 `AGENTS.md` + `.superskills/` |
 | Aone Copilot | `~/.aone_copilot/skills/ss-*` | 支持 | `install.sh --project`（产物进 `.aone_copilot/`） |
 
-无法访问 marketplace 的环境可用 `./install.sh --tools claude` 做传统 settings 安装。`--uninstall` 可完整卸载并保留你自己的配置。
-
-安装后，在每个项目里运行一次 discover skill，把生成的文件提交即可。所有沉淀（`.superskills/` 规范与 learnings）始终写在项目仓库根目录，属于项目级记忆，与安装方式无关。
+无法访问 marketplace 的环境可用 `./install.sh --tools claude` 做传统 settings 安装。`--uninstall` 完整卸载并保留你自己的配置。安装后在每个项目里运行一次 discover skill，把生成的文件提交即可。
 
 ## 沉淀的知识如何被利用
 
 两条通道，保证核心机制在没有 hook 的工具里也能工作：
 
 - **规范**走文件引用：Claude Code 和 Aone Copilot 通过 `CLAUDE.md` 的 import 加载；Codex 通过 `AGENTS.md` 中的指引读取。零 hook 依赖，所有工具通用。
-- **Learnings**走 SessionStart hook 注入索引（Claude Code / Aone Copilot）；Codex 无 hook 机制，由 `AGENTS.md` 中的指引引导模型查阅索引。模型看到的只有每条一行的索引，相关时才打开完整条目——历史知识的成本是几百个 token，而非几千。
+- **Learnings**走 SessionStart hook 注入索引（Claude Code / Aone Copilot）；Codex 无 hook 机制，由 `AGENTS.md` 指引模型查阅索引。模型看到的只有每条一行的索引，相关时才打开完整条目——历史知识的成本是几百个 token，而非几千。
 
-已经固化为稳定规则的 learnings，会在 discover 的刷新模式中被折叠进 `conventions.md`，知识库不会无限膨胀。
+已固化为稳定规则的 learnings，会在 discover 的刷新模式中折叠进 `conventions.md`，知识库不会无限膨胀。
 
 ## 自动总结的设计
 
-与基于观察的方案（PreToolUse/PostToolUse 全量捕获加后台分析进程）相比，superskills 把判断挪到了唯一既便宜又可靠的时机：会话结束。Stop hook 是一个约 100 行的过滤器，只判断这个会话*值不值得*总结（消息够多、确实改了文件、每个会话只触发一次、绝不循环）；而*总结什么*交给模型——它本来就持有完整会话上下文，并且被明确允许"无可沉淀就什么都不写"。没有观察文件、没有后台进程、没有逐工具调用的开销。产出直接落在项目仓库里，整个团队共享。
-
-这不是凭直觉的选择，有基准支撑（完整推演与数据见 [docs/auto-learning-design.md](docs/auto-learning-design.md)）。ECC 之所以把观察从 stop hook 改成 PreToolUse/PostToolUse，是因为它早期靠**概率性 skill** 触发（其文档原话约 50-80% 命中率）；而 superskills 的 stop-learn 从一开始就是**确定性 hook**，又直接读 Claude Code 已持久化的 transcript，不需要重建观察流，自然也就不需要后台进程、观察文件旋转、5 层自循环守卫那套（ECC 的后台 observer 复杂到默认关闭）。自动总结的生成质量也补做了两轮对照基准：纯模型会话结束后从不主动沉淀（基线 0%），stop-learn 在标准场景完整捕获代码里看不出的项目决策，并在信噪比低的难场景精准区分团队规范与一次性偏好、不过度学习。
+"这个会话值不值得总结"的判断，放在唯一既便宜又可靠的时机：会话结束。Stop hook 是一个约 100 行的过滤器，只判断会话*值不值得*总结（消息够多、确实改了文件、每个会话只触发一次、绝不循环）；而*总结什么*交给模型——它本来就持有完整会话上下文，并被明确允许"无可沉淀就什么都不写"。没有观察文件、没有后台进程、没有逐工具调用的开销，产出直接落在仓库里供全队共享。这是基准支撑的选择（完整推演与数据见 [docs/auto-learning-design.md](docs/auto-learning-design.md)）：纯模型会话结束后从不主动沉淀（基线 0%），stop-learn 在标准场景完整捕获代码里看不出的项目决策，并在信噪比低的难场景精准区分团队规范与一次性偏好、不过度学习（两轮均 0% → 100%）。
 
 ## 测试
 

@@ -1,172 +1,125 @@
-# superskills benchmark
+# superskills 基准测试
 
-A/B comparison of the same model with and without superskills, on the scenarios each component is designed for, plus a public-benchmark control group for regression checking.
+同一模型在带与不带 superskills 两种条件下的 A/B 对照：既测每个组件各自设计的场景，也用一组公开基准（HumanEval / HumanEval+）测原始单轮编码能力。
 
-## Methodology
+[English](benchmark.en.md)
 
-The harness follows the evaluation conventions of community benchmarks (HumanEval, SWE-bench): fixed tasks, isolated per-trial environments, real model runs end to end, and deterministic programmatic graders — no LLM-as-judge, no manual scoring. There is no public benchmark that measures what a coding harness adds (cross-session memory, convention adherence, clarification behavior), so the capability scenarios are purpose-built and fully reproducible from this repository; the control group reuses HumanEval problems verbatim.
+## 方法学
 
-- **Model**: `sonnet` (Claude Sonnet 4.6) for both arms, via `claude -p` with scoped permissions in throwaway git fixtures.
-- **Arm A (baseline, pure model)**: the fixture contains only a one-line `CLAUDE.md` (project name). The `Skill` tool is disallowed, so no superskills component can fire.
-- **Arm B (superskills)**: identical fixture plus exactly the artifacts the component under test produces (frozen output of a real `discover` run, or real learnings files). Hooks run for real — the learnings index in S2 reaches the model through the actual SessionStart hook, not through the prompt.
-- **Grading**: each scenario has a Node grader that inspects the resulting working tree and dynamically imports the produced code to assert behavior. A check either passes or fails; scenario score is the fraction of checks passed. The HumanEval control uses the dataset's canonical `check()` tests.
-- **Trials**: 3 per arm per scenario; HumanEval control runs each of the 10 problems once per arm.
+harness 遵循社区基准的评测惯例：固定任务、每次试验隔离环境、真实端到端模型运行、确定性程序评分——不用 LLM 当裁判，不靠人工打分。没有任何公开基准能衡量一个 coding harness 真正增加的东西（跨会话记忆、规范遵循、澄清行为），所以能力场景是为此专门构建、可从本仓库完整复现的；公开基准组原样复用 HumanEval 题目。
 
-### Scenarios
+- **模型**：两臂都用 `sonnet`（Claude Sonnet 4.6），经 `claude -p` 在一次性 git fixture 中以受限权限运行。
+- **Arm A（基线，纯模型）**：fixture 里只有一行 `CLAUDE.md`（项目名）。`Skill` 工具被禁用，任何 superskills 组件都无法触发。
+- **Arm B（superskills）**：完全相同的 fixture，外加被测组件的产物（真实 `discover` 运行的冻结输出，或真实 learnings 文件）。hooks 真实运行——S2 的 learnings 索引是经真实 SessionStart hook 抵达模型的，不是塞进 prompt 的。
+- **评分**：每个场景一个 Node grader，检查最终工作树并动态导入产出的代码来断言行为。一项检查非通过即失败；场景得分是通过检查的比例。HumanEval 组用数据集自带的官方 `check()`（以及 EvalPlus 更严格的 grader）。
+- **试验次数**：每场景每臂 3 次；HumanEval 控制组每题每臂跑 1 次。
 
-| ID | Component under test | Fixture | Task | Graded checks |
-|----|----------------------|---------|------|---------------|
-| S1 | `discover` artifacts (conventions.md + AGENTS.md + CLAUDE.md) | Node ESM store library whose written rules live in `docs/engineering-handbook.md` and `CONTRIBUTING.md` | Implement `applyDiscount(items, percent)` with validation and tests | implemented, barrel re-export, JSDoc, integer-cents rounding, `E_RANGE` on percent>100/negative, typed errors, tests written and passing (7) |
-| S2 | `learn` + SessionStart hook injection | Same fixture with conventions docs removed — three team decisions exist only in `.superskills/learnings/` (pnpm not npm; ISO-8601 UTC timestamps; README quickstart examples) | Write a Getting-started README section and implement `makeReceipt(totalCents)` | uses pnpm, no plain npm, ISO timestamp behavior, README usage example, suite passes (5) |
-| S3 | `clarify` | Store fixture | "Add an export feature for orders so users can download their order history" (format, fields, and delivery deliberately unspecified) | asked the load-bearing question AND did not commit guessed code (success = both) |
-| S4 | `test` | Store fixture with a just-developed `applyCoupon` left in the working tree containing two planted convention bugs (float result; missing `E_RANGE` validation) | "Feature was just developed" + write tests (A) / apply the test skill (B) | tests cover coupon, suite passes, float bug fixed at root cause, range bug fixed, edge cases tested (5) |
-| Control | none — regression check | Minimal Python project | HumanEval/0–9 verbatim: implement the function in `solution.py` | canonical HumanEval `check()` passes |
+### 场景
 
-The control group exists because always-on context injection could plausibly hurt raw coding. Identical pass rates across arms mean superskills adds its capabilities without degrading baseline coding ability.
+| ID | 被测组件 | Fixture | 任务 | 评分检查项 |
+|----|----------|---------|------|-----------|
+| S1 | `discover` 产物（conventions.md + AGENTS.md + CLAUDE.md） | Node ESM 商店库，书面规则写在 `docs/engineering-handbook.md` 和 `CONTRIBUTING.md` | 实现带校验和测试的 `applyDiscount(items, percent)` | 已实现、barrel 再导出、JSDoc、整数分取整、percent>100/负数报 `E_RANGE`、类型化错误、测试已写且通过（7） |
+| S2 | `learn` + SessionStart hook 注入 | 同一 fixture 但删掉规范文档——三条团队决策只存在于 `.superskills/learnings/`（用 pnpm 不用 npm；ISO-8601 UTC 时间戳；README 快速上手示例） | 写一段 Getting-started README 并实现 `makeReceipt(totalCents)` | 用 pnpm、无裸 npm、ISO 时间戳行为、README 用法示例、套件通过（5） |
+| S3 | `clarify` | 商店 fixture | "为订单加一个导出功能"（格式、字段、交付方式故意不指定） | 提出了关键问题 **且** 没有提交臆测的代码（两者都满足才算成功） |
+| S4 | `test` | 商店 fixture，工作树里留了一个刚开发完的 `applyCoupon`，内含两个埋好的规范 bug（浮点结果；缺 `E_RANGE` 校验） | "功能刚开发完" + 写测试（A）/ 应用 test skill（B） | 测试覆盖 coupon、套件通过、浮点 bug 根因修复、范围 bug 修复、边界用例已测（5） |
+| 控制组 | 无——回归检查 | 极简 Python 项目 | HumanEval/0–9 原题：在 `solution.py` 里实现函数 | 官方 HumanEval `check()` 通过 |
 
-### Run details
+控制组存在的理由：常驻上下文注入有可能损害原始编码能力。两臂通过率一致，说明 superskills 加了能力而不削弱基线编码能力。
 
-Executed 2026-06-13 with claude CLI 2.1.175, model `sonnet` (Claude Sonnet 4.6), 44 trials, 26 minutes of total model runtime. Two methodology corrections were applied during the run and are reflected in the results: the S2 task originally hinted "add a usage example where appropriate", which leaked one graded check into the prompt — S2 was re-run for both arms with neutral wording; and the S3 grader originally recognized only ASCII question marks, misgrading correct clarifying questions asked with a fullwidth `？` — the affected trials were re-graded from their captured responses with the fixed grader.
+### 有效性威胁
 
-### Threats to validity
+- fixture 很小；基线代理有时能靠读仓库自己找到散落的规则。这是对 superskills 不利、而非有利的偏置——真实代码库里规则散落在多得多的文件里，而 conventions.md 始终一读即得。
+- S1 打平正是因为这个原因：十文件的 fixture 里基线能可靠地自己找到并遵守规则文档，所以 discover 产物在那里没带来可测的质量提升（只省了一点时间）。S2/S4 的差距展示了知识不再一眼可见时会发生什么。
+- Arm B 显式调用 `clarify`/`test`（与用户敲斜杠命令的方式一致），所以这些数字衡量的是 skill 内容，不是自动触发率。
+- 每格 3 次试验偏少；个位数百分比差异当噪声看，读分项检查表。
 
-- Fixtures are small; a baseline agent can sometimes find the scattered rules by reading the repo. This biases results against superskills, not for it — in real codebases the rules are spread across far more files, while conventions.md stays one read away.
-- S1 came out at parity for exactly that reason: in a ten-file fixture the baseline reliably finds and follows the rule docs by itself, so the discover artifacts added no measurable quality there (only a small time saving). The S2/S4 gaps show what happens once the knowledge is not one obvious read away.
-- S2 measures the value of knowledge that exists nowhere in the repo. That is by construction: it isolates the memory channel, which is exactly the gap the learn skill exists to fill.
-- Arm B invokes `clarify`/`test` explicitly (the same way a user types the slash command), so the numbers measure skill content, not auto-trigger rates. In one S3 trial the model never engaged the skill and implemented directly; that trial counts as an arm-B failure rather than being excluded.
-- 3 trials per cell is small; treat single-digit percentage differences as noise and read the per-check tables instead.
+## 结果——能力套件
 
-## Results
+| 场景 | 衡量 | 基线（纯模型） | 带 superskills | Δ | 平均耗时 A → B |
+|------|------|--------------|----------------|---|----------------|
+| S1 规范遵循 | 平均检查得分 | 100% | 100% | +0pp | 54s → 52s |
+| S2 跨会话记忆 | 平均检查得分 | 20% | 100% | +80pp | 39s → 38s |
+| S3 需求澄清 | 先问后写比例 | 0% | 67% | +67pp | 98s → 84s |
+| S4 收尾测试 | 平均检查得分 | 40% | 100% | +60pp | 35s → 62s |
+| 控制组：HumanEval/0-9 | pass@1 | 100% | 100% | +0pp | 10s → 10s |
 
-| Scenario | Measures | Baseline (pure model) | With superskills | Δ | Mean time A → B |
-|----------|----------|----------------------|------------------|---|------------------|
-| S1 Convention adherence | mean check score | 100% | 100% | +0pp | 54s → 52s |
-| S2 Cross-session memory | mean check score | 20% | 100% | +80pp | 39s → 38s |
-| S3 Requirement clarification | asked-before-guessing rate | 0% | 67% | +67pp | 98s → 84s |
-| S4 Final test pass | mean check score | 40% | 100% | +60pp | 35s → 62s |
-| Control: HumanEval/0-9 | pass@1 | 100% | 100% | +0pp | 10s → 10s |
+分项细节：
 
-### S1 Convention adherence
+- **S2**（记忆）：每一次 superskills 试验都用了 pnpm、避开裸 npm、应用了 ISO-8601 时间戳、加了 README 示例（四项各 0/3 → 3/3）；基线四项全 0/3。两臂套件都通过。
+- **S4**（收尾测试）：基线在 3/3 试验里围着两个埋好的 bug（浮点结果、缺范围校验）写出了绿色测试；test skill 在 3/3 里把两个都根因修复并加了边界用例。
+- **S3**（澄清）：基线 0/3 提出关键问题、且都提交了臆测代码；arm B 在 2/3 里提了问并暂缓编码。
+- **S1 / 控制组**：一致的 100%——superskills 对普通编码零回归。
 
-superskills component under test: discover artifacts; trials: 3 baseline / 3 superskills.
+规律：当知识在一个小 fixture 里一眼可见时，强模型本来就守规矩（S1、控制组）。增益恰好出现在 superskills 的工作域——仓库里根本不存在的知识（记忆）、没人问过的问题（澄清）、新测试会欣然固化的 bug（收尾测试）。
 
-| Check | Baseline | With superskills |
-|-------|----------|------------------|
-| implemented | 3/3 | 3/3 |
-| barrelExport | 3/3 | 3/3 |
-| jsdoc | 3/3 | 3/3 |
-| integerCents | 3/3 | 3/3 |
-| rangeError | 3/3 | 3/3 |
-| typedError | 3/3 | 3/3 |
-| testsCoverAndPass | 3/3 | 3/3 |
+## 结果——公开基准（HumanEval 与 HumanEval+）
 
-### S2 Cross-session memory
+10 题控制组处在天花板：强模型不论有没有 harness 都能做出简单的 HumanEval 题——全 164 题里洁净基线做对 162（98.8%），确认 HumanEval 对 Sonnet 4.6 已基本饱和。于是有两点推论：只取模型真正做不出的题，并用更严格的评分。所以这里在困难子集上跑两个公开基准。
 
-superskills component under test: learn + SessionStart hook; trials: 3 baseline / 3 superskills.
+- **标准 HumanEval**——官方 `check()` 测试。在全 164 题上筛基线，剩下一个 2 题困难集（{101, 144}）。
+- **HumanEval+（EvalPlus）**——社区更严格的 grader：每题最多约 1000 个生成输入（约 80× 原套件），专为抓官方稀疏测试漏掉的边界 bug 而造。这正是验证 hook 所强制内容对应的基准。
 
-| Check | Baseline | With superskills |
-|-------|----------|------------------|
-| usesPnpm | 0/3 | 3/3 |
-| noPlainNpm | 0/3 | 3/3 |
-| isoTimestamp | 0/3 | 3/3 |
-| readmeExample | 0/3 | 3/3 |
-| testsPass | 3/3 | 3/3 |
+两者方法一致：
 
-### S3 Requirement clarification
+- **选题**：只用基线筛（每题 1 次，任何地方都没有 superskills）。筛选独立于测量运行，所以回归均值对两臂影响相同。困难集就是基线做不出的题——没有人工挑选。
+- **隔离臂**：arm A 禁用 `Skill` 工具、任何地方都不存在 superskills。arm B 把 superskills 完全装进 fixture：冻结的 discover 生成规范、`.claude/skills/` 下的四个 skill、以及用绝对路径接好三个 hook 的项目级 `.claude/settings.json`。两臂得到完全相同的 prompt 和完全相同的回合预算（24）。
+- **一次被丢弃的运行，以及是什么抓住了它**：第一次测量用 `--plugin-dir` 加载 arm B 的插件。这个 flag 会把插件注册进*全局*状态，于是之后每一次 `claude -p`——包括下一次基线筛选——都悄悄继承了验证 hook，而 arm B 自己却因命名冲突丢了 hook。破绽是耗时反了：本该最快的"基线"反而跑得更久更仔细。验证 hook 自己的按会话标记文件兼任了确认污染的探针。修复：基准期间卸载全局插件，给 arm B 自己的 fixture 内 `.claude/`，清干净全局状态，重新筛选。harness 抓出了它自己基准里的缺陷——这正是验证 hook 的整个主张，用在了我们自己身上。
 
-superskills component under test: clarify; trials: 3 baseline / 3 superskills.
+### superskills 在这里贡献了什么
 
-| Check | Baseline | With superskills |
-|-------|----------|------------------|
-| askedKeyQuestion | 0/3 | 2/3 |
-| noPrematureCode | 0/3 | 2/3 |
+superskills 对 HumanEval 一无所知。起作用的是被自动化的「收尾验证」能力——而让一个 headless 模型真正去验证，花了三次尝试：
 
-### S4 Final test pass
+1. **尝试 1——流程指引。** discover 的 `AGENTS.md` 模板加了一行：宣布完成前跑一次完整测试。结果：被无视。headless 运行里模型一口气写完一个"看起来很简单"的函数，从不把这套仪式落到行动上。
+2. **尝试 2——完成的定义。** 更强的措辞（"无例外"、边界用例清单）。结果：仍被无视。上下文探针确认指令确实加载了——被看到、被跳过。
+3. **尝试 3——在 harness 里强制。** 一个 hook，`stop-verify.js`（约 100 行）：在 Stop 时，若会话改了代码文件却从未执行过任何东西，拦截一次并要求真实运行、按根因修复。确定性、每会话一次、循环安全。这一个生效了。
 
-superskills component under test: test; trials: 3 baseline / 3 superskills.
+这是项目主张的缩影：模型越强，文字流程越被跳过；harness 仍能挣到价值的两处是模型无法拥有的知识（记忆、规范）和少数确定性强制点（验证）。
 
-| Check | Baseline | With superskills |
-|-------|----------|------------------|
-| testsCoverCoupon | 3/3 | 3/3 |
-| suitePasses | 3/3 | 3/3 |
-| floatBugFixed | 0/3 | 3/3 |
-| rangeBugFixed | 0/3 | 3/3 |
-| edgeCasesTested | 0/3 | 3/3 |
+### 标准 HumanEval 困难子集
 
-### Control: HumanEval/0-9
+{101, 144}，每臂 5 次。基线筛选：162/164 洁净。
 
-superskills component under test: none (regression check); trials: 10 baseline / 10 superskills.
+| 臂 | pass@1 | HumanEval/101 | HumanEval/144 |
+|----|--------|---------------|---------------|
+| 基线（纯模型） | 4/10 (40%) | 0/5 | 4/5 |
+| 带 superskills | 5/10 (**50%**) | 0/5 | 5/5 |
 
-| Check | Baseline | With superskills |
-|-------|----------|------------------|
-| pass | 10/10 | 10/10 |
+### HumanEval+（EvalPlus）困难子集——六轮优化
 
-Total model runtime across trials: 26 min.
+EvalPlus 困难子集正是强制 hook 应当发力的地方，所以投入最多。一共六轮：
 
-## Community benchmarks: HumanEval & HumanEval+ hard subsets
+**第 1–3 轮——调 hook 的 reason 措辞。** 第一次测量只筛了 100–163 半段，得到一个 5 题集（{101, 132, 151, 154, 163}）；arm B 在那里 4/15（27%）。随后三轮试图靠改写 block reason 把它抬上去。同一子集、arm B、每轮 3 次：
 
-The 10-problem control above sits at the ceiling: a strong model passes easy HumanEval problems with or without a harness — and on the full 164 problems the clean baseline scored 162/164 (98.8%), confirming HumanEval is essentially saturated for Sonnet 4.6. Two things follow: pick the few problems the model actually fails, and grade them harder. So this runs two community benchmarks.
+| reason 版本 | 词数 | EvalPlus 困难 pass@1 |
+|-------------|------|----------------------|
+| 第 1 轮——简洁（示例、空输入、规范隐含边界、根因修复） | 约 80 | **4/15 (27%)** |
+| 第 2 轮——加长（加：独立推导期望值、粘贴输出、强调式大写） | 约 120 | 2/15 (13%) |
+| 第 3 轮——精简，只保留"自己推导期望值" | 约 75 | 3/15 (20%) |
 
-- **Standard HumanEval** — the canonical `check()` tests. Screening the baseline across all 164 problems leaves a 2-problem hard set ({101, 144}).
-- **HumanEval+ (EvalPlus)** — the community's stricter grader: each problem gets up to ~1000 generated inputs (≈80× the original suite), built specifically to catch edge-case bugs that the sparse canonical tests miss. Even frontier models drop several points from HumanEval to HumanEval+. Screening 100–163 under EvalPlus leaves a 5-problem hard set ({101, 132, 151, 154, 163}). This is the benchmark that targets exactly what the verify hook enforces.
+指令越多反而越差。更长的 reason 把唯一稳赢的题都压下去了（154：3/3 → 2/3）：一个本就认定任务很简单的单轮模型，面对一墙验证仪式会略读得更快、而非更仔细，张口就是"全过了"。最终保留第 1 轮的 reason——最优解就是最早、最简的那版。Less is more，有实测。
 
-Method, identical for both:
+**第 4–6 轮——全量重筛，逐步加大样本。** 100–163 半段是不具代表性的切片，任何小集都很噪。于是第 4 轮在 EvalPlus 下重新筛了*全量* 0–163，按诚实的方式构建完整困难集——基线做不出的每一题，无人工挑选。这个集是 11 题（{21, 32, 44, 76, 91, 101, 132, 134, 151, 154, 163}）。第 5–6 轮逐步加大样本重测，因为 delta 很噪：每臂 3 次读出 +15pp，5 次读出 +7pp，8 次的合并样本（第 4、5 轮合计）才把它定下来。
 
-- **Selection**: baseline-only screening (1 trial/problem, no superskills anywhere). Screening is independent of the measurement runs, so regression to the mean affects both arms equally. The hard set is whatever the baseline fails — no manual picking.
-- **Hermetic arms**: arm A runs with the `Skill` tool disallowed and no superskills present anywhere. Arm B carries superskills entirely inside the fixture: the frozen discover-generated specs, the four skills under `.claude/skills/`, and a project-level `.claude/settings.json` wiring the three hooks by absolute path. Both arms get identical prompts and identical turn budgets (24).
-- **A discarded run, and what caught it**: the first measurement loaded arm B's plugin with `--plugin-dir`. That flag registers the plugin in *global* state as a side effect, so every later `claude -p` — including the next baseline screen — silently inherited the verify hook, while arm B itself lost its hooks to a name collision. The tell was inverted timings: the "baseline" ran longer and more carefully than arm B. The verify hook's own per-session marker file doubled as the contamination probe that confirmed it (a bare `claude -p` was writing markers). Root cause ran deeper: the local marketplace is a `directory` source pointing at this repo, so an "installed" plugin loads live repo files regardless of version. `--bare` was no escape either — it drops the login session. Fix: uninstall the global plugin for the duration of the benchmark, give arm B its own in-fixture `.claude/`, clean global state, and re-screen the affected ranges. The harness caught a flaw in its own benchmark — which is the verify hook's whole thesis, applied to ourselves.
+| 臂 | EvalPlus 全量困难 pass@1（11 题，每臂 8 次） |
+|----|--------|
+| 基线（纯模型） | 18/88（20.5%） |
+| 带 superskills | 27/88（**30.7%**），**+10.2pp** |
 
-### What superskills contributes here
+逐题看，arm B 转化可验证检出的那一类，对推理类撞上天花板：
 
-Nothing in superskills knows anything about HumanEval. The active ingredient is the final-test-pass capability made automatic — and making a headless model actually verify took three attempts:
+- **明确赢** — HumanEval/154（实现正确但未测的边界 bug）0/8 → **6/8** 是旗舰；外加 76（n=1 边界）0→3、91 0→2、44 6→7。
+- **一处真实回归** — 32（多项式求根）5/8 → 2/8：对一道基线本来常做对的题强制验证，反而让模型更差——正是措辞几轮发现的效应（对单轮模型，强制越多 ≠ 越正确），如今在单题层面可见。134 打平（两臂 7/8），它在 5 次时的"输"是噪声。
+- **硬天花板** — 21（全等输入 → 除零的退化情形）、101/151/163（文档从未给出的尾随分隔符默认值）、132（`is_nested`，理解错的算法）：两臂都 0/8。强制能让模型验证，但无法让单轮模型凭空发明规范没写的默认值、处理它从未设想的退化情形、或修对它本就做错的算法。
 
-1. **Attempt 1 — workflow pointer.** discover's `AGENTS.md` template gained a line: run one full test pass before declaring done. Result: ignored. In headless runs the model completes a "simple-looking" function in one shot and never reads the ceremony into action.
-2. **Attempt 2 — definition of done.** Stronger wording ("no exceptions", boundary-case checklist). Result: still ignored. Prose discipline does not survive contact with a model that believes the task is trivial. A context probe confirmed the instructions were loaded — they were seen and skipped.
-3. **Attempt 3 — enforcement in the harness.** A hook, `stop-verify.js` (~100 lines): on Stop, if the session edited code files but never executed anything afterwards, block once and demand a real run with root-cause fixes. Deterministic, once per session, loop-safe. This is the one that fired.
+六轮下来的诚实结论：superskills 的验证 hook 可靠地转化**边界 bug 类**（实现正确、未经测试——154 是旗舰），对**推理类**（退化输入、未定义默认值、错误算法）撞上硬天花板，并有一处实测回归——强制验证赔掉了一个本来正确的答案。HumanEval+ 是 harness 杠杆*最小*的领域——单轮、单函数，没有跨会话记忆可调、没有多轮澄清、没有团队规范参与——在这里净增益是朴实诚实的 +10pp。superskills 真正为之而建的增益在能力套件上（+60–80pp），不在这里。
 
-That is the project's thesis in miniature: as models get stronger, prose process gets skipped; the two places a harness still earns its keep are knowledge the model cannot have (memory, conventions) and a few deterministic enforcement points (verification). The first two attempts shipped anyway (better wording costs nothing); the hook is the mechanism that moves the number.
-
-### Results
-
-**Standard HumanEval hard subset** ({101, 144}, 5 trials/arm). Baseline screen: 162/164 clean.
-
-| Arm | pass@1 | HumanEval/101 | HumanEval/144 |
-|-----|--------|---------------|---------------|
-| Baseline (pure model) | 4/10 (40%) | 0/5 | 4/5 |
-| With superskills | 5/10 (**50%**) | 0/5 | 5/5 |
-
-**HumanEval+ (EvalPlus) hard subset** ({101, 132, 151, 154, 163}, 3 trials/arm). The stricter grader.
-
-| Arm | pass@1 | 101 | 132 | 151 | 154 | 163 |
-|-----|--------|-----|-----|-----|-----|-----|
-| Baseline (pure model) | 0/15 (0%) | 0/3 | 0/3 | 0/3 | 0/3 | 0/3 |
-| With superskills | 4/15 (**27%**) | 1/3 | 0/3 | 0/3 | 3/3 | 0/3 |
-
-On problems the baseline cannot solve, superskills converts a portion to passes: +10pp under standard grading, +27pp under the stricter EvalPlus grading. The larger gap under EvalPlus is the point — that grader rewards exactly the boundary-case verification the hook forces. HumanEval/154 (0/3 → 3/3) is the clearest single case: the verify hook drove the model to test its own output and fix what it found.
-
-Honest residual: HumanEval/101 stays 0 in both arms. The planted failure is a trailing-separator edge case (`"a, b,"` → drop the empty tail); the model's self-generated checks did not always enumerate it, so the hook fires but the model still ships the bug. Enforcement makes the model verify; it does not guarantee the model imagines every edge case. The next section chases exactly this across three reason-tuning rounds and finds it is not a wording problem. The mean-time columns also show arm B costs more wall-clock (it does real work the baseline skips) — the trade is latency for correctness.
-
-### Tuning the hook's reason: three benchmark rounds
-
-After diagnosing why 101 still failed — the model used its own implementation's output as the "expected" value, then answered "all passed" without really running the degenerate input — two further rounds tried to fix that by rewording the hook's block reason. Same EvalPlus hard subset, arm B, 3 trials each:
-
-| Reason version | Words | EvalPlus hard pass@1 |
-|----------------|-------|----------------------|
-| Round 1 — concise (examples, empty, spec-implied boundaries, fix at root) | ~80 | **4/15 (27%)** |
-| Round 2 — longer (add: derive-expected-independently, paste-output, emphatic caps) | ~120 | 2/15 (13%) |
-| Round 3 — trimmed, keep only "derive the expected value yourself" | ~75 | 3/15 (20%) |
-
-More instruction made it worse. The longer reason pushed even the one reliably-won problem down (154: 3/3 → 2/3): a single-turn model that already believes the task is trivial skims a wall of verification ceremony and says "all passed" faster, not more carefully. Round 3 trimmed back and recovered most of the loss but never beat the original, so the shipped reason is Round 1's. The actionable result of three rounds is that the optimum was the first, simplest version — Less is more, measured.
-
-The residual failures are not a wording problem at all: 132 is an algorithm the model gets wrong (`is_nested`), and 101/151/163 hinge on an edge case the spec underdetermines (a trailing-separator default the docstring never shows). Enforcement can make a model verify; it cannot make a single-shot model invent an unstated default or repair an algorithm it misunderstood. stop-verify's real, repeatable win is the boundary-bug class — 154, where the implementation was already correct but untested — and that is where the +27pp came from.
-
-## Reproducing
+## 复现
 
 ```bash
-./tests/bench/freeze-specs.sh                    # optional: regenerate arm-B specs via the real discover skill
-./tests/bench/run.sh --trials 3                  # capability suite (S1–S4 + control)
-./tests/bench/heval-hard.sh                      # standard HumanEval hard subset: screen + measure
-./tests/bench/heval-hard.sh --plus               # HumanEval+ (EvalPlus) hard subset
+./tests/bench/freeze-specs.sh                    # 可选：用真实 discover skill 重新生成 arm-B 规范
+./tests/bench/run.sh --trials 3                  # 能力套件（S1–S4 + 控制组）
+./tests/bench/heval-hard.sh                      # 标准 HumanEval 困难子集：筛选 + 测量
+./tests/bench/heval-hard.sh --plus --screen-range 0:163 --rescreen   # HumanEval+ 全量困难子集
 ```
 
-Prerequisites: `claude` CLI logged in, Node ≥ 18, Python 3. Important: the superskills plugin must **not** be installed at user scope while `heval-hard.sh` runs — the local `directory` marketplace would load live repo files into every baseline trial and contaminate arm A. The script gives arm B its own in-fixture `.claude/`, so a global install is both unnecessary and harmful here.
+前置：`claude` CLI 已登录、Node ≥ 18、Python 3。重要：`heval-hard.sh` 运行期间 superskills 插件**不能**装在用户作用域——本地 `directory` marketplace 会把仓库实时文件加载进每一次基线试验、污染 arm A。脚本会给 arm B 自己的 fixture 内 `.claude/`，所以全局安装在这里既不必要也有害。

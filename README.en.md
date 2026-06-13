@@ -6,7 +6,7 @@
 
 [中文文档](README.md)
 
-## Why
+## Design philosophy
 
 Heavyweight harnesses made sense when models needed guardrails at every step: hard process gates, multi-stage reviews, forced TDD loops. As models get stronger, most of that scaffolding turns into overhead. What still compounds in value:
 
@@ -17,30 +17,21 @@ Heavyweight harnesses made sense when models needed guardrails at every step: ha
 
 superskills keeps exactly these four things and deletes everything else.
 
-## Does it actually help?
+## Benchmarks
 
-Measured A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, deterministic graders — full methodology and per-check tables in [docs/benchmark.md](docs/benchmark.md):
+A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, deterministic graders. HumanEval is saturated for a strong model (the clean baseline scores 162/164), so the community method is to take only the problems the baseline fails and grade them harder with EvalPlus (~80× tests per problem). Full methodology, contamination post-mortem, and per-check tables in [docs/benchmark.en.md](docs/benchmark.en.md).
 
 | Scenario | Baseline (pure model) | With superskills | Δ |
 |----------|----------------------|------------------|---|
 | Cross-session memory (3 team decisions persisted as learnings) | 20% | 100% | **+80pp** |
 | Requirement clarification (ambiguous feature request) | 0% asked | 67% asked | **+67pp** |
-| Final test pass (2 planted bugs in "just developed" code) | 40% — tests locked the bugs in | 100% — both fixed at root cause | **+60pp** |
-| Convention adherence (rules scattered in docs) | 100% | 100% | 0pp, ~equal time |
+| Final test pass (2 planted bugs in "just developed" code) | 40% | 100% | **+60pp** |
+| Convention adherence (rules scattered in docs) | 100% | 100% | even |
+| HumanEval hard subset (canonical `check`) | 40% | 50% | **+10pp** |
+| HumanEval+ hard subset (EvalPlus, full-range, 8 trials) | 20.5% | 30.7% | **+10pp** |
 | Control: HumanEval/0–9 verbatim | 10/10 | 10/10 | **no regression** |
 
-The pattern: when the knowledge is one obvious read away in a tiny fixture, a strong model already behaves (S1, control). The gains appear exactly where superskills operates — knowledge that exists nowhere in the repo (memory), questions nobody asked (clarification), and bugs that fresh tests happily cement in place (test pass). Baseline runs wrote passing test suites around both planted bugs in 3 of 3 trials; the test skill fixed both at root cause in 3 of 3.
-
-### Community benchmarks: HumanEval & HumanEval+ hard subsets
-
-HumanEval is saturated for Sonnet 4.6 (the clean baseline scores 162/164), so raw pass rates can't separate the arms. The community method is to take only the problems the baseline fails and grade them harder. We ran two public benchmarks (methodology, contamination post-mortem, and full data in [docs/benchmark.md](docs/benchmark.md)):
-
-| Benchmark | Hard set | Baseline pass@1 | With superskills | Δ |
-|-----------|----------|-----------------|------------------|---|
-| HumanEval (canonical `check`) | 2 baseline failures | 40% | 50% | **+10pp** |
-| HumanEval+ (EvalPlus, ~80× tests) | 5 baseline failures | 0% | 27% | **+27pp** |
-
-superskills knows nothing about HumanEval. The active ingredient is the final-test-pass capability made automatic — which took three attempts to land: two rounds of prose instruction were ignored, and only a ~100-line `stop-verify` hook (block once if code was edited but never executed; demand a real run over documented examples and boundary cases with root-cause fixes) moved the number. EvalPlus, which exists to catch edge-case bugs, shows the larger gain — exactly what enforcement targets. HumanEval/154 (0/3 → 3/3) is the clearest single case. Three further benchmark rounds then tuned the hook's reason wording: the original concise version won (a longer reason dropped it to 13%, a re-trimmed one to 20%, neither beating the first), so the original ships — Less is more, measured ([docs/benchmark.md](docs/benchmark.md)). Honest residual: the remaining failures aren't a wording problem — 101 needs a trailing-separator default the spec never states, 132 is an algorithm the model gets wrong. Enforcement makes a model verify; it can't make a single-shot model invent an unstated default or fix an algorithm it misunderstood.
+The gains appear exactly where superskills operates: knowledge that exists nowhere in the repo (memory), questions nobody asked (clarification), and bugs that fresh tests happily cement in place (test pass). On community benchmarks, the final-test-pass capability made automatic by a hook drives a single-shot model to actually run its own code, converting a portion of the baseline's failures to passes — HumanEval/154 (0/8 → 6/8) is the clearest single case. Honest residual: the remaining failures need a default the spec never states or an algorithm the model misunderstood, and on a couple of problems forced verification slightly regresses. HumanEval+ is the regime where a harness has the least leverage, so a net +10pp is expected; superskills' large gains live on the memory, clarification, and test-pass capabilities it is actually built for.
 
 ## What you get
 
@@ -68,6 +59,8 @@ AGENTS.md                 # ≤20 lines, points at .superskills/
 CLAUDE.md                 # @AGENTS.md + @.superskills/conventions.md
 ```
 
+All persisted knowledge always lives at the project repository root — project-level memory, independent of how superskills was installed.
+
 ## Install
 
 ### Claude Code (plugin, recommended)
@@ -87,7 +80,7 @@ codex plugin marketplace add ./superskills
 codex plugin add superskills@superskills
 ```
 
-Or run `./install.sh` inside the clone — it follows the same flow when the codex CLI supports plugins, and falls back to custom prompts on older CLIs. Keep the clone in place; Codex resolves the plugin from it.
+Or run `./install.sh` inside the clone — same flow when the codex CLI supports plugins, falling back to custom prompts on older CLIs. Keep the clone in place; Codex resolves the plugin from it.
 
 ### Aone Copilot
 
@@ -96,27 +89,9 @@ git clone https://github.com/Mrlyk/superskills.git && cd superskills
 ./install.sh              # autodetects ~/.aone_copilot (and ~/.codex)
 ```
 
-### Project-level install (nothing user-global touched)
+### Project-level install
 
-The methods above are user-level (active in every project). To enable superskills in a single project without touching your global setup, install at project scope.
-
-Claude Code supports installation scopes natively; run inside the project:
-
-```
-/plugin marketplace add Mrlyk/superskills --scope project
-/plugin install superskills@superskills --scope project
-```
-
-This writes only the project's `.claude/settings.json` (`extraKnownMarketplaces` + `enabledPlugins`); user-level config stays untouched. Commit that file and teammates get an install prompt the next time they open the project. For a personal, non-committed setup, use `--scope local` instead (writes `.claude/settings.local.json`).
-
-The install script does the same without needing the claude CLI, and covers Aone Copilot's project-level install too:
-
-```bash
-./install.sh --project /path/to/your-project    # path defaults to the current directory
-./install.sh --project /path/to/your-project --uninstall
-```
-
-It writes the project's `.claude/settings.json` (byte-identical to the official `--scope project` output) and copies skills plus hooks into the project's `.aone_copilot/` (hook paths resolve via `$CLAUDE_PROJECT_DIR`, so the committed directory works on every teammate's machine). Codex plugin configuration is global-only with no project scope; Codex's project-level coverage already comes from `AGENTS.md` pointers plus `.superskills/` (run the discover skill).
+To enable superskills in a single project without touching your global setup: in Claude Code run `/plugin marketplace add Mrlyk/superskills --scope project` and `/plugin install superskills@superskills --scope project`, which writes only the project's `.claude/settings.json` (commit it and teammates get an install prompt). Without the claude CLI, use `./install.sh --project /path/to/project` — output matches the official `--scope project`, and also covers Aone Copilot's `.aone_copilot/`.
 
 | Tool | Skills | Hooks (auto-learning + injection) | Project-level install |
 |------|--------|------|------|
@@ -124,9 +99,7 @@ It writes the project's `.claude/settings.json` (byte-identical to the official 
 | Codex | plugin: `superskills:discover` etc. | no (Codex plugins have no hook mechanism) — use the learn skill manually | no plugin project scope; covered by `AGENTS.md` + `.superskills/` |
 | Aone Copilot | `~/.aone_copilot/skills/ss-*` | yes | `install.sh --project` (lands in `.aone_copilot/`) |
 
-`./install.sh --tools claude` remains available as a legacy settings-based install for environments without marketplace access. `--uninstall` reverses everything and preserves your own settings.
-
-Then, in each project, run the discover skill once and commit the generated files. All persisted knowledge (`.superskills/` conventions and learnings) always lives at the project repository root — it is project-level memory, independent of how superskills was installed.
+`./install.sh --tools claude` remains a legacy settings-based install for environments without marketplace access. `--uninstall` reverses everything and preserves your own settings. Then, in each project, run the discover skill once and commit the generated files.
 
 ## How knowledge flows back in
 
@@ -139,9 +112,7 @@ Learnings that harden into stable rules get folded into `conventions.md` by `dis
 
 ## Auto-learning design
 
-Compared to observation-based systems (PreToolUse/PostToolUse capture plus background analyzers), superskills moves the judgment to the one moment it is cheap and reliable: session end. The Stop hook is a ~100-line filter that decides only *whether* the session is worth mining (enough messages, files actually changed, once per session, never loops); the model — which already holds the full session in context — decides *what* is worth keeping, with explicit permission to keep nothing. No observation files, no background processes, no per-tool-call overhead. And the output lands in the repo, so the whole team inherits it.
-
-This is an evidence-backed choice, not a guess (full reasoning and data in [docs/auto-learning-design.md](docs/auto-learning-design.md)). ECC moved its capture from a Stop hook to PreToolUse/PostToolUse because its early version triggered via a **probabilistic skill** (~50-80% hit rate, in its own docs); superskills' stop-learn was a **deterministic hook** from day one and reads the transcript Claude Code already persists, so it never needs a second capture stream — and therefore none of the background process, file rotation, or five-layer self-loop guards (ECC's background observer is complex enough to ship disabled by default). Auto-learning *generation* is benchmarked over two rounds: the pure model never persists anything on its own (0% baseline), while stop-learn captures the code-invisible decisions in the standard case and, under low signal-to-noise, precisely separates a team convention from throwaway one-offs without over-learning.
+The judgment of *whether* a session is worth mining lands at the one moment it is cheap and reliable: session end. The Stop hook is a ~100-line filter that decides only that (enough messages, files actually changed, once per session, never loops); the model — which already holds the full session in context — decides *what* is worth keeping, with explicit permission to keep nothing. No observation files, no background processes, no per-tool-call overhead, and the output lands in the repo so the whole team inherits it. This is an evidence-backed choice (full reasoning and data in [docs/auto-learning-design.en.md](docs/auto-learning-design.en.md)): the pure model never persists anything on its own (0% baseline), while stop-learn captures the code-invisible decisions in the standard case and, under low signal-to-noise, precisely separates a team convention from throwaway one-offs without over-learning (both rounds 0% → 100%).
 
 ## Testing
 
