@@ -79,6 +79,55 @@ assert_empty "non-git cwd does not trigger" "$out"
 out="$(echo 'not json' | node "$REPO_DIR/plugins/superskills/hooks/stop-learn.js")"
 assert_empty "malformed stdin is silent" "$out"
 
+echo "== stop-verify.js =="
+run_verify() { # session transcript cwd [active]
+  printf '{"session_id":"%s","transcript_path":"%s","cwd":"%s","stop_hook_active":%s}' \
+    "$1" "$2" "$3" "${4:-false}" | node "$REPO_DIR/plugins/superskills/hooks/stop-verify.js"
+}
+
+# Code edited, nothing executed afterwards -> block once.
+TV="$TMP/t-noverify.jsonl"
+{
+  echo '{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Write","input":{"file_path":"solution.py"}}]}}'
+} > "$TV"
+out="$(run_verify vs-1 "$TV" "$REPO")"
+assert_contains "unexecuted code edit blocks stop" "$out" '"decision":"block"'
+assert_contains "reason demands boundary cases" "$out" "boundary cases"
+out="$(run_verify vs-1 "$TV" "$REPO")"
+assert_empty "verify fires at most once per session" "$out"
+
+# Code edited, then executed -> silent.
+TV2="$TMP/t-verified.jsonl"
+{
+  echo '{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Write","input":{"file_path":"solution.py"}}]}}'
+  echo '{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","input":{"command":"python3 check.py"}}]}}'
+} > "$TV2"
+out="$(run_verify vs-2 "$TV2" "$REPO")"
+assert_empty "executed-after-edit stays silent" "$out"
+
+# Run before the edit does not count.
+TV3="$TMP/t-ranbefore.jsonl"
+{
+  echo '{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","input":{"command":"python3 old.py"}}]}}'
+  echo '{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Edit","input":{"file_path":"src/app.js"}}]}}'
+} > "$TV3"
+out="$(run_verify vs-3 "$TV3" "$REPO")"
+assert_contains "stale run before edit still blocks" "$out" '"decision":"block"'
+
+# Doc-only edits -> silent.
+TV4="$TMP/t-doconly.jsonl"
+{
+  echo '{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Write","input":{"file_path":"README.md"}}]}}'
+} > "$TV4"
+out="$(run_verify vs-4 "$TV4" "$REPO")"
+assert_empty "doc-only edits stay silent" "$out"
+
+out="$(run_verify vs-5 "$TV" "$REPO" true)"
+assert_empty "stop_hook_active suppresses verify" "$out"
+
+out="$(run_verify vs-6 "$TV" "$NOGIT")"
+assert_empty "non-git cwd suppresses verify" "$out"
+
 echo "== session-start.js =="
 LEARNED="$TMP/learned"; make_repo "$LEARNED"
 mkdir -p "$LEARNED/.superskills/learnings"

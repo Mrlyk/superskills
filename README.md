@@ -1,6 +1,6 @@
 # superskills
 
-**Less is more.** 极简 Coding Harness，以 Claude Code 与 Codex 双官方 plugin 形式交付：4 个 skill、2 个 hook、常驻成本约 418 token。Aone Copilot 由安装脚本覆盖。
+**Less is more.** 极简 Coding Harness，以 Claude Code 与 Codex 双官方 plugin 形式交付：4 个 skill、3 个 hook、常驻成本约 418 token。Aone Copilot 由安装脚本覆盖。
 
 [English](README.en.md)
 
@@ -38,7 +38,8 @@ superskills 只保留这四件事，删掉其余一切。
 | `superskills:clarify` | skill | 只提出会改变实现方案的问题，每个问题附推荐答案，澄清完立即开始编码 |
 | `superskills:test` | skill | 开发结束后组织一次完整的单元测试，只看结果，不固定流程 |
 | SessionStart hook | hook | 每次会话注入 learnings 索引；规范落后 HEAD 超过 30 个提交时提醒刷新；项目缺少 AI 规范文件时建议运行 discover |
-| Stop hook | hook | 自动总结：当会话做了实际工作（用户消息不少于 5 条且有文件修改）时，在结束前让模型带着完整上下文判断一次是否有值得沉淀的内容 |
+| Stop hook（verify） | hook | 完成前验证：若会话改了代码却从未执行过，阻止收尾一次并要求真实运行——文档示例加边界用例——按根因修复 |
+| Stop hook（learn） | hook | 自动总结：当会话做了实际工作（用户消息不少于 5 条且有文件修改）时，在结束前让模型带着完整上下文判断一次是否有值得沉淀的内容 |
 
 所有组件都会出现在 `/plugin` 面板中，并标注各自的 token 成本。常驻总成本约 418 token。
 
@@ -82,15 +83,37 @@ git clone https://github.com/Mrlyk/superskills.git && cd superskills
 ./install.sh              # 自动检测 ~/.aone_copilot（与 ~/.codex）
 ```
 
-| 工具 | Skills | Hooks（自动总结 + 注入） |
-|------|--------|------|
-| Claude Code | plugin：`superskills:discover` 等 | 支持 |
-| Codex | plugin：`superskills:discover` 等 | 不支持（Codex plugin 无 hook 机制），自动总结改用手动 learn |
-| Aone Copilot | `~/.aone_copilot/skills/ss-*` | 支持 |
+### 项目级安装（不影响用户全局）
+
+上面的方式都是用户级（对所有项目生效）。只想在某个项目里启用、不动用户全局配置时，用项目级安装。
+
+Claude Code 官方支持安装作用域，在项目目录内执行：
+
+```
+/plugin marketplace add Mrlyk/superskills --scope project
+/plugin install superskills@superskills --scope project
+```
+
+这只会写入项目的 `.claude/settings.json`（`extraKnownMarketplaces` + `enabledPlugins` 两个条目），用户级配置零改动。把这个文件提交后，队友打开项目时 Claude Code 会自动提示安装并启用。只想自己用、不进版本库的话，把 `--scope project` 换成 `--scope local`（写入 `.claude/settings.local.json`）。
+
+也可以不依赖 claude CLI，用安装脚本一键完成（同时覆盖 Aone Copilot 的项目级安装）：
+
+```bash
+./install.sh --project /path/to/your-project    # 省略路径则为当前目录
+./install.sh --project /path/to/your-project --uninstall
+```
+
+它写入项目的 `.claude/settings.json`（与官方 `--scope project` 产物完全一致），并把 skills 和 hooks 复制进项目的 `.aone_copilot/`（hook 路径通过 `$CLAUDE_PROJECT_DIR` 解析，提交后全队可用）。Codex 的 plugin 配置只有全局一档，没有项目作用域；Codex 的项目级覆盖本来就由 `AGENTS.md` 指引 + `.superskills/` 承担（运行 discover 即可）。
+
+| 工具 | Skills | Hooks（自动总结 + 注入） | 项目级安装 |
+|------|--------|------|------|
+| Claude Code | plugin：`superskills:discover` 等 | 支持 | `--scope project/local` 或 `install.sh --project` |
+| Codex | plugin：`superskills:discover` 等 | 不支持（Codex plugin 无 hook 机制），自动总结改用手动 learn | 无 plugin 项目作用域，靠 `AGENTS.md` + `.superskills/` |
+| Aone Copilot | `~/.aone_copilot/skills/ss-*` | 支持 | `install.sh --project`（产物进 `.aone_copilot/`） |
 
 无法访问 marketplace 的环境可用 `./install.sh --tools claude` 做传统 settings 安装。`--uninstall` 可完整卸载并保留你自己的配置。
 
-安装后，在每个项目里运行一次 discover skill，把生成的文件提交即可。
+安装后，在每个项目里运行一次 discover skill，把生成的文件提交即可。所有沉淀（`.superskills/` 规范与 learnings）始终写在项目仓库根目录，属于项目级记忆，与安装方式无关。
 
 ## 沉淀的知识如何被利用
 

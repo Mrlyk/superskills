@@ -102,10 +102,11 @@ function main() {
     reason:
       'Before finishing, review this session for durable learnings: '
       + 'user corrections, pitfalls with their fixes, or project decisions not visible in code. '
-      + 'If none qualify, stop now without writing anything. Otherwise persist each one to '
-      + `.superskills/learnings/${today}-<slug>.md (frontmatter: title/date/tags; `
+      + 'If none qualify, stop now without writing anything. Otherwise persist each one under '
+      + 'the repository root (the directory containing .git, NOT the cwd if that is a subdirectory) '
+      + `as <repo-root>/.superskills/learnings/${today}-<slug>.md (frontmatter: title/date/tags; `
       + 'body: **Context** / **Rule** / **Why**, under 15 lines), '
-      + 'skip anything already covered by .superskills/learnings/INDEX.md, '
+      + 'skip anything already covered by <repo-root>/.superskills/learnings/INDEX.md, '
       + 'update INDEX.md with one line per new entry, then stop.',
   }));
 }

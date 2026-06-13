@@ -27,8 +27,9 @@ Generate or refresh the project's AI-facing spec files. Keep everything short �
 2. `AGENTS.md` (if missing) — max 20 lines: one-paragraph project description, key commands, then exactly these pointers:
    - `Read .superskills/conventions.md before writing code.`
    - `Check .superskills/learnings/INDEX.md for past learnings; read a linked entry when relevant.`
+   - `Before reporting any coding task as done you must have executed the changed code: run the documented examples plus boundary cases (empty, extreme, malformed, repeated/trailing input) via the test suite or a throwaway script you then delete, fix failures at root cause, and include the run output in your final reply. For larger changes apply the superskills test skill.`
 
-   If AGENTS.md exists, only append the two pointer lines when missing. Never rewrite existing user content.
+   If AGENTS.md exists, only append the pointer lines when missing. Never rewrite existing user content.
 
 3. `CLAUDE.md` (if missing) — exactly these imports:
 

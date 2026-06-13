@@ -1,0 +1,3 @@
+{"scenario":"heval_hard","arm":"A","trial":3,"problem":39,"checks":{"pass":false},"score":0,"durationSec":16}
+{"scenario":"heval_hard","arm":"A","trial":1,"problem":39,"checks":{"pass":false},"score":0,"durationSec":16}
+{"scenario":"heval_hard","arm":"B","trial":1,"problem":39,"checks":{"pass":true},"score":1,"durationSec":20}

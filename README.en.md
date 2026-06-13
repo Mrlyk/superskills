@@ -1,6 +1,6 @@
 # superskills
 
-**Less is more.** A minimal coding harness, shipped as official plugins for both Claude Code and Codex: 4 skills, 2 hooks, ~418 always-on tokens. Aone Copilot is covered by the install script.
+**Less is more.** A minimal coding harness, shipped as official plugins for both Claude Code and Codex: 4 skills, 3 hooks, ~418 always-on tokens. Aone Copilot is covered by the install script.
 
 [中文文档](README.md)
 
@@ -38,7 +38,8 @@ The pattern: when the knowledge is one obvious read away in a tiny fixture, a st
 | `superskills:clarify` | skill | Surfaces only the questions whose answers change the implementation, with recommended answers, then starts coding. |
 | `superskills:test` | skill | One full unit-test pass after development is done. Result-driven, no fixed process. |
 | SessionStart hook | hook | Injects the learnings index into each session; reminds you when conventions drift >30 commits behind HEAD; suggests `discover` for projects with no AI specs. |
-| Stop hook | hook | Auto-learning: when a session did real work (≥5 user messages and file edits), asks the model once — with full session context — to persist anything durable before stopping. |
+| Stop hook (verify) | hook | Verify-before-done: if the session edited code but never executed it afterwards, blocks the stop once and demands a real run — documented examples plus boundary cases — with root-cause fixes. |
+| Stop hook (learn) | hook | Auto-learning: when a session did real work (≥5 user messages and file edits), asks the model once — with full session context — to persist anything durable before stopping. |
 
 Everything shows up in the `/plugin` panel with per-component token costs. Total always-on cost: ~418 tokens.
 
@@ -82,15 +83,37 @@ git clone https://github.com/Mrlyk/superskills.git && cd superskills
 ./install.sh              # autodetects ~/.aone_copilot (and ~/.codex)
 ```
 
-| Tool | Skills | Hooks (auto-learning + injection) |
-|------|--------|------|
-| Claude Code | plugin: `superskills:discover` etc. | yes |
-| Codex | plugin: `superskills:discover` etc. | no (Codex plugins have no hook mechanism) — use the learn skill manually |
-| Aone Copilot | `~/.aone_copilot/skills/ss-*` | yes |
+### Project-level install (nothing user-global touched)
+
+The methods above are user-level (active in every project). To enable superskills in a single project without touching your global setup, install at project scope.
+
+Claude Code supports installation scopes natively; run inside the project:
+
+```
+/plugin marketplace add Mrlyk/superskills --scope project
+/plugin install superskills@superskills --scope project
+```
+
+This writes only the project's `.claude/settings.json` (`extraKnownMarketplaces` + `enabledPlugins`); user-level config stays untouched. Commit that file and teammates get an install prompt the next time they open the project. For a personal, non-committed setup, use `--scope local` instead (writes `.claude/settings.local.json`).
+
+The install script does the same without needing the claude CLI, and covers Aone Copilot's project-level install too:
+
+```bash
+./install.sh --project /path/to/your-project    # path defaults to the current directory
+./install.sh --project /path/to/your-project --uninstall
+```
+
+It writes the project's `.claude/settings.json` (byte-identical to the official `--scope project` output) and copies skills plus hooks into the project's `.aone_copilot/` (hook paths resolve via `$CLAUDE_PROJECT_DIR`, so the committed directory works on every teammate's machine). Codex plugin configuration is global-only with no project scope; Codex's project-level coverage already comes from `AGENTS.md` pointers plus `.superskills/` (run the discover skill).
+
+| Tool | Skills | Hooks (auto-learning + injection) | Project-level install |
+|------|--------|------|------|
+| Claude Code | plugin: `superskills:discover` etc. | yes | `--scope project/local` or `install.sh --project` |
+| Codex | plugin: `superskills:discover` etc. | no (Codex plugins have no hook mechanism) — use the learn skill manually | no plugin project scope; covered by `AGENTS.md` + `.superskills/` |
+| Aone Copilot | `~/.aone_copilot/skills/ss-*` | yes | `install.sh --project` (lands in `.aone_copilot/`) |
 
 `./install.sh --tools claude` remains available as a legacy settings-based install for environments without marketplace access. `--uninstall` reverses everything and preserves your own settings.
 
-Then, in each project, run the discover skill once and commit the generated files.
+Then, in each project, run the discover skill once and commit the generated files. All persisted knowledge (`.superskills/` conventions and learnings) always lives at the project repository root — it is project-level memory, independent of how superskills was installed.
 
 ## How knowledge flows back in
 

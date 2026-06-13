@@ -5,7 +5,7 @@ description: Persist durable learnings from the current session (user correction
 
 # Learn
 
-Extract knowledge worth keeping from this session and write it into the project's `.superskills/learnings/`.
+Extract knowledge worth keeping from this session and write it into the project's `.superskills/learnings/`. This is project-level memory: `.superskills/` always lives at the repository root (next to `.git`), never in a subdirectory you happen to be working in.
 
 ## What qualifies
 

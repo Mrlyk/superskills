@@ -17,6 +17,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-verify.js\"",
+            "timeout": 15
+          },
+          {
+            "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-learn.js\"",
             "timeout": 15
           }

@@ -103,12 +103,35 @@ superskills component under test: none (regression check); trials: 10 baseline /
 
 Total model runtime across trials: 26 min.
 
+## HumanEval hard subset (community benchmark)
+
+The 10-problem control above sits at the ceiling: a strong model passes easy HumanEval problems with or without a harness. To measure on community tasks where improvement is possible, we use the standard hard-subset method: screen the baseline once over a pre-registered contiguous range of the official dataset, take exactly its failures as the hard set, then measure both arms fresh.
+
+- **Selection**: baseline-only screening (1 trial/problem, no superskills anywhere). Screening runs are independent of measurement runs, so regression to the mean affects both arms equally. The hard set is whatever fails — no manual picking.
+- **Hermetic arms**: arm A runs with the `Skill` tool disallowed and no plugin; arm B loads the plugin per-run via `--plugin-dir`, immune to whatever is installed at user scope. Both arms get identical prompts and identical turn budgets (24); the only difference is the presence of superskills (frozen discover-generated specs in the fixture, plus the plugin's skills and hooks).
+- **Grading**: the dataset's canonical `check()` tests, verbatim.
+
+### What superskills contributes here
+
+Nothing in superskills knows anything about HumanEval. The active ingredient is the final-test-pass capability made automatic, which took three iterations to get right:
+
+1. **Round 1 — workflow pointer.** discover's `AGENTS.md` template gained a line: run one full test pass before declaring done. Result: ignored. In headless runs the model completes a "simple-looking" function in one shot and never reads the ceremony into action.
+2. **Round 2 — definition of done.** Stronger wording ("no exceptions", boundary-case checklist). Result: still ignored. Prose discipline does not survive contact with a model that believes the task is trivial. A context probe confirmed the instructions were loaded — they were seen and skipped.
+3. **Round 3 — enforcement in the harness.** A third hook, `stop-verify.js` (~100 lines): on Stop, if the session edited code files but never executed anything afterwards, block once and demand a real run — every documented example verbatim, empty input, and the boundary cases the spec implies — with root-cause fixes. Deterministic, once per session, loop-safe. Probe runs confirm the full loop: the model finishes, the hook blocks, the model writes a throwaway check, runs it, fixes, then finishes with run output.
+
+That is the project's thesis in miniature: as models get stronger, prose process gets skipped; the two places a harness still earns its keep are knowledge the model cannot have (memory, conventions) and a few deterministic enforcement points (verification). Rounds 1–2 shipped anyway (better wording costs nothing); round 3 is the mechanism that moves the number.
+
+### Results
+
+<!-- RESULTS-HEVAL -->
+
 ## Reproducing
 
 ```bash
 ./tests/bench/freeze-specs.sh     # optional: regenerate arm-B specs with the real discover skill
 ./tests/bench/run.sh --trials 3   # full suite, writes tests/bench/results/report.md
 ./tests/bench/run.sh --scenarios s2 --trials 5   # one scenario, more trials
+./tests/bench/heval-hard.sh                      # community hard subset: screen + measure
 ```
 
 Prerequisites: `claude` CLI logged in, the superskills plugin installed and enabled, Node ≥ 18, Python 3 for the control group.

@@ -6,7 +6,11 @@
 #   ./install.sh --tools claude        # legacy settings-based install (prefer the plugin:
 #                                      #   /plugin marketplace add Mrlyk/superskills)
 #   ./install.sh --all                 # codex + aone + claude(legacy)
-#   ./install.sh --uninstall [--tools ...]
+#   ./install.sh --project [dir]       # project-level install (default dir: cwd):
+#                                      #   claude → <dir>/.claude/settings.json plugin entries
+#                                      #   aone   → <dir>/.aone_copilot/ skills + hooks
+#                                      #   nothing user-global is touched
+#   ./install.sh --uninstall [--tools ...] [--project [dir]]
 #
 # Codex: installs the real Codex plugin via `codex plugin` when available
 # (set SUPERSKILLS_CODEX_MODE=prompts to force the custom-prompts fallback).
@@ -15,19 +19,22 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$REPO_DIR/plugins/superskills"
 SKILLS=(learn discover clarify test)   # installed as ss-<name> to avoid collisions
-HOOK_FILES=(session-start.js stop-learn.js)
+HOOK_FILES=(session-start.js stop-verify.js stop-learn.js)
 
 TOOLS=""
 UNINSTALL=0
 ALL=0
+PROJECT=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tools) TOOLS="$2"; shift 2 ;;
     --all) ALL=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
+    --project)
+      if [[ $# -gt 1 && "${2:0:1}" != "-" ]]; then PROJECT="$2"; shift 2; else PROJECT="$PWD"; shift; fi ;;
     -h|--help)
-      sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 1 ;;
   esac
@@ -50,7 +57,7 @@ detect_tools() {
   echo "$found"
 }
 
-if [[ -z "$TOOLS" ]]; then
+if [[ -z "$TOOLS" && -z "$PROJECT" ]]; then
   if [[ "$ALL" == 1 ]]; then
     TOOLS="codex,aone,claude"
   else
@@ -72,14 +79,16 @@ require_node() {
   fi
 }
 
-# Merge (or remove) superskills hook entries in <base>/settings.json.
+# Merge (or remove) superskills hook entries in <settingsDir>/settings.json.
+# cmdBase prefixes the hook command path: an absolute dir for user-level
+# installs, or a $CLAUDE_PROJECT_DIR-relative prefix for project installs.
 # Idempotent: existing superskills entries are replaced, others untouched.
 merge_settings() {
-  local base="$1" mode="$2"
-  node - "$base" "$mode" <<'EOF'
+  local settingsDir="$1" mode="$2" cmdBase="$3"
+  node - "$settingsDir" "$mode" "$cmdBase" <<'EOF'
 const fs = require('fs');
 const path = require('path');
-const [base, mode] = process.argv.slice(2);
+const [base, mode, cmdBase] = process.argv.slice(2);
 const file = path.join(base, 'settings.json');
 let settings = {};
 if (fs.existsSync(file)) {
@@ -104,7 +113,7 @@ const add = (event, matcher, script, timeout) => {
   const entry = {
     hooks: [{
       type: 'command',
-      command: `node "${path.join(base, 'superskills', 'hooks', script)}"`,
+      command: `node "${cmdBase}/superskills/hooks/${script}"`,
       timeout,
     }],
   };
@@ -115,7 +124,8 @@ strip('SessionStart');
 strip('Stop');
 if (mode === 'install') {
   add('SessionStart', 'startup|resume|clear', 'session-start.js', 10);
-  add('Stop', null, 'stop-learn.js', 15);
+  add('Stop', null, 'stop-verify.js', 15);
+add('Stop', null, 'stop-learn.js', 15);
 }
 if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
 fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
@@ -139,14 +149,82 @@ install_claude_like() {
   for h in "${HOOK_FILES[@]}"; do
     cp "$PLUGIN_DIR/hooks/$h" "$base/superskills/hooks/$h"
   done
-  merge_settings "$base" install
+  merge_settings "$base" install "$base"
 }
 
 uninstall_claude_like() {
   local base="$1"
   for s in "${SKILLS[@]}"; do rm -rf "$base/skills/ss-$s"; done
   rm -rf "$base/superskills"
-  [[ -f "$base/settings.json" ]] && merge_settings "$base" uninstall
+  [[ -f "$base/settings.json" ]] && merge_settings "$base" uninstall "$base"
+}
+
+# Project-level Claude Code install: declare the marketplace and enable the
+# plugin in <project>/.claude/settings.json only — the exact files written by
+# `claude plugin ... --scope project`. Nothing user-global is touched; when a
+# teammate opens the project, Claude Code prompts to install from GitHub.
+merge_project_claude() { # projectDir mode
+  local proj="$1" mode="$2"
+  mkdir -p "$proj/.claude"
+  node - "$proj" "$mode" <<'EOF'
+const fs = require('fs');
+const path = require('path');
+const [proj, mode] = process.argv.slice(2);
+const file = path.join(proj, '.claude', 'settings.json');
+let settings = {};
+if (fs.existsSync(file)) {
+  const raw = fs.readFileSync(file, 'utf8').trim();
+  if (raw) {
+    try { settings = JSON.parse(raw); } catch (e) {
+      console.error(`refusing to touch invalid JSON: ${file}`);
+      process.exit(1);
+    }
+  }
+}
+if (mode === 'install') {
+  settings.extraKnownMarketplaces = settings.extraKnownMarketplaces || {};
+  settings.extraKnownMarketplaces.superskills = {
+    source: { source: 'github', repo: 'Mrlyk/superskills' },
+  };
+  settings.enabledPlugins = settings.enabledPlugins || {};
+  settings.enabledPlugins['superskills@superskills'] = true;
+} else {
+  if (settings.extraKnownMarketplaces) {
+    delete settings.extraKnownMarketplaces.superskills;
+    if (Object.keys(settings.extraKnownMarketplaces).length === 0) delete settings.extraKnownMarketplaces;
+  }
+  if (settings.enabledPlugins) {
+    delete settings.enabledPlugins['superskills@superskills'];
+    if (Object.keys(settings.enabledPlugins).length === 0) delete settings.enabledPlugins;
+  }
+}
+fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
+EOF
+}
+
+# Project-level Aone Copilot install: skills + hooks live inside the project
+# (commit .aone_copilot/ to share with the team); hook commands resolve via
+# $CLAUDE_PROJECT_DIR so they work on every teammate's machine.
+install_aone_project() {
+  local proj="$1"
+  local base="$proj/.aone_copilot"
+  mkdir -p "$base/skills" "$base/superskills/hooks"
+  for s in "${SKILLS[@]}"; do
+    rm -rf "$base/skills/ss-$s"
+    copy_skill_prefixed "$s" "$base/skills/ss-$s"
+  done
+  for h in "${HOOK_FILES[@]}"; do
+    cp "$PLUGIN_DIR/hooks/$h" "$base/superskills/hooks/$h"
+  done
+  merge_settings "$base" install '$CLAUDE_PROJECT_DIR/.aone_copilot'
+}
+
+uninstall_aone_project() {
+  local proj="$1"
+  local base="$proj/.aone_copilot"
+  for s in "${SKILLS[@]}"; do rm -rf "$base/skills/ss-$s"; done
+  rm -rf "$base/superskills"
+  [[ -f "$base/settings.json" ]] && merge_settings "$base" uninstall '$CLAUDE_PROJECT_DIR/.aone_copilot'
 }
 
 codex_plugin_capable() {
@@ -189,6 +267,43 @@ uninstall_codex_prompts() {
 }
 
 require_node
+
+# Project-level mode: write only inside the target project, never user-global.
+if [[ -n "$PROJECT" ]]; then
+  PROJECT="$(cd "$PROJECT" && pwd)" || { echo "project dir not found: $PROJECT" >&2; exit 1; }
+  PROJ_TOOLS="${TOOLS:-claude,aone}"
+  IFS=',' read -ra PROJ_LIST <<< "$PROJ_TOOLS"
+  for t in "${PROJ_LIST[@]}"; do
+    case "$t" in
+      claude)
+        if [[ "$UNINSTALL" == 1 ]]; then
+          [[ -f "$PROJECT/.claude/settings.json" ]] && merge_project_claude "$PROJECT" uninstall
+          echo "superskills removed from project claude config ($PROJECT/.claude/settings.json)"
+        else
+          merge_project_claude "$PROJECT" install
+          echo "superskills enabled for claude at project scope ($PROJECT/.claude/settings.json)"
+          echo "commit .claude/settings.json; teammates get an install prompt on next session."
+        fi
+        ;;
+      aone)
+        if [[ "$UNINSTALL" == 1 ]]; then
+          uninstall_aone_project "$PROJECT"
+          echo "superskills removed from project aone config ($PROJECT/.aone_copilot)"
+        else
+          install_aone_project "$PROJECT"
+          echo "superskills installed for aone at project scope ($PROJECT/.aone_copilot)"
+          echo "commit .aone_copilot/ to share it with the team."
+        fi
+        ;;
+      codex)
+        echo "codex: plugins are global-only (no project scope in codex CLI)." >&2
+        echo "Project-level coverage for Codex comes from AGENTS.md + .superskills/ (run the discover skill)." >&2
+        ;;
+      *) echo "unknown tool: $t" >&2; exit 1 ;;
+    esac
+  done
+  exit 0
+fi
 
 IFS=',' read -ra TOOL_LIST <<< "$TOOLS"
 for t in "${TOOL_LIST[@]}"; do

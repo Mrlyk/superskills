@@ -1,6 +1,6 @@
 {
   "name": "superskills",
-  "version": "1.2.0",
+  "version": "1.3.1",
   "description": "Less is more: minimal coding harness — self-learning, convention discovery, requirement clarification, final test pass.",
   "author": {
     "name": "Mrlyk",
@@ -9,7 +9,13 @@
   "homepage": "https://github.com/Mrlyk/superskills",
   "repository": "https://github.com/Mrlyk/superskills",
   "license": "MIT",
-  "keywords": ["memory", "conventions", "learning", "harness", "minimal"],
+  "keywords": [
+    "memory",
+    "conventions",
+    "learning",
+    "harness",
+    "minimal"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "superskills",
@@ -17,7 +23,11 @@
     "longDescription": "Less is more. superskills keeps the four things that still compound in value as models get stronger: persistent learnings from past sessions, a minimal evidenced convention spec discovered from your codebase, clarification of genuinely undecided requirements before coding, and one result-driven test pass after development. Four skills, nothing else.",
     "developerName": "Mrlyk",
     "category": "Coding",
-    "capabilities": ["Interactive", "Read", "Write"],
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
     "websiteURL": "https://github.com/Mrlyk/superskills",
     "defaultPrompt": [
       "Use the discover skill to generate project conventions",

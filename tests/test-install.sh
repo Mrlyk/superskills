@@ -80,6 +80,34 @@ settings="$(cat "$HOME/.aone_copilot/settings.json")"
 assert_contains "user hook survives uninstall" "$settings" "echo user-hook"
 if [[ "$settings" != *"superskills"* ]]; then ok "our hooks removed from settings"; else fail "superskills entries remain"; fi
 
+echo "== project-level install =="
+PROJ="$TMP/proj"
+mkdir -p "$PROJ/.claude"
+echo '{"model": "sonnet"}' > "$PROJ/.claude/settings.json"   # pre-existing project settings
+bash "$REPO_DIR/install.sh" --project "$PROJ" >/dev/null
+
+psettings="$(cat "$PROJ/.claude/settings.json")"
+assert_contains "project marketplace declared (github source)" "$psettings" '"repo": "Mrlyk/superskills"'
+assert_contains "project plugin enabled" "$psettings" '"superskills@superskills": true'
+assert_contains "pre-existing project settings preserved" "$psettings" '"model": "sonnet"'
+for s in ss-learn ss-discover ss-clarify ss-test; do
+  assert_file "project aone skill $s" "$PROJ/.aone_copilot/skills/$s/SKILL.md"
+done
+assert_file "project aone hooks" "$PROJ/.aone_copilot/superskills/hooks/session-start.js"
+assert_contains "project aone hooks resolve via CLAUDE_PROJECT_DIR" \
+  "$(cat "$PROJ/.aone_copilot/settings.json")" '$CLAUDE_PROJECT_DIR/.aone_copilot/superskills/hooks'
+assert_no_file "project install leaves user claude untouched" "$HOME/.claude/skills/ss-learn"
+
+bash "$REPO_DIR/install.sh" --project "$PROJ" >/dev/null
+count="$(grep -o '"superskills@superskills"' "$PROJ/.claude/settings.json" | wc -l | tr -d ' ')"
+if [[ "$count" == 1 ]]; then ok "project reinstall is idempotent"; else fail "duplicated project entries ($count)"; fi
+
+bash "$REPO_DIR/install.sh" --project "$PROJ" --uninstall >/dev/null
+psettings="$(cat "$PROJ/.claude/settings.json")"
+if [[ "$psettings" != *"superskills"* ]]; then ok "project claude entries removed"; else fail "project claude entries remain"; fi
+assert_contains "project settings survive uninstall" "$psettings" '"model": "sonnet"'
+assert_no_file "project aone skills removed" "$PROJ/.aone_copilot/skills/ss-learn"
+
 echo
 echo "install: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

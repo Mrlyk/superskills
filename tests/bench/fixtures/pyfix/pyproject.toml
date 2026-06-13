@@ -3,6 +3,3 @@ name = "pyfix"
 version = "0.1.0"
 description = "Control-group fixture for the superskills benchmark"
 requires-python = ">=3.9"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]

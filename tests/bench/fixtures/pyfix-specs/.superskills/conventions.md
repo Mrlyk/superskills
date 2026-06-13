@@ -1,15 +1,15 @@
-# pyfix Conventions
+# Conventions
 
 ## Commands
-- install: `pip install -e .` (or `pip install -e ".[dev]"` if extras added)
-- test: `pytest`
-- no build step (pure Python utility)
+- Install: `pip install -e .`
+- Test: (no test runner configured yet)
+- Lint: (no linter configured yet)
 
 ## Structure
-- `tests/` — pytest test files (configured in pyproject.toml)
-- `pyproject.toml` — project metadata and tool config
+- `pyproject.toml` — project manifest, requires Python >=3.9
+- `README.md` — minimal description
 
 ## Conventions
-- Python >= 3.9
-- Commit style: Conventional Commits (`feat:`, `fix:`, `chore:`, etc.)
-- Test discovery: pytest reads from `tests/` directory
+- Python >=3.9
+- Project name: `pyfix` (control-group fixture for the superskills benchmark)
+- Commit style: `<type>: <description>` (e.g. `feat: initial app`)
