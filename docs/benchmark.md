@@ -103,13 +103,18 @@ superskills component under test: none (regression check); trials: 10 baseline /
 
 Total model runtime across trials: 26 min.
 
-## HumanEval hard subset (community benchmark)
+## Community benchmarks: HumanEval & HumanEval+ hard subsets
 
-The 10-problem control above sits at the ceiling: a strong model passes easy HumanEval problems with or without a harness. To measure on community tasks where improvement is possible, we use the standard hard-subset method: screen the baseline once over a pre-registered contiguous range of the official dataset, take exactly its failures as the hard set, then measure both arms fresh.
+The 10-problem control above sits at the ceiling: a strong model passes easy HumanEval problems with or without a harness — and on the full 164 problems the clean baseline scored 162/164 (98.8%), confirming HumanEval is essentially saturated for Sonnet 4.6. Two things follow: pick the few problems the model actually fails, and grade them harder. So this runs two community benchmarks.
 
-- **Selection**: baseline-only screening (1 trial/problem, no superskills anywhere). Screening runs are independent of measurement runs, so regression to the mean affects both arms equally. The hard set is whatever fails — no manual picking.
-- **Hermetic arms**: arm A runs with the `Skill` tool disallowed and no plugin; arm B loads the plugin per-run via `--plugin-dir`, immune to whatever is installed at user scope. Both arms get identical prompts and identical turn budgets (24); the only difference is the presence of superskills (frozen discover-generated specs in the fixture, plus the plugin's skills and hooks).
-- **Grading**: the dataset's canonical `check()` tests, verbatim.
+- **Standard HumanEval** — the canonical `check()` tests. Screening the baseline across all 164 problems leaves a 2-problem hard set ({101, 144}).
+- **HumanEval+ (EvalPlus)** — the community's stricter grader: each problem gets up to ~1000 generated inputs (≈80× the original suite), built specifically to catch edge-case bugs that the sparse canonical tests miss. Even frontier models drop several points from HumanEval to HumanEval+. Screening 100–163 under EvalPlus leaves a 5-problem hard set ({101, 132, 151, 154, 163}). This is the benchmark that targets exactly what the verify hook enforces.
+
+Method, identical for both:
+
+- **Selection**: baseline-only screening (1 trial/problem, no superskills anywhere). Screening is independent of the measurement runs, so regression to the mean affects both arms equally. The hard set is whatever the baseline fails — no manual picking.
+- **Hermetic arms**: arm A runs with the `Skill` tool disallowed and no superskills present anywhere. Arm B carries superskills entirely inside the fixture: the frozen discover-generated specs, the four skills under `.claude/skills/`, and a project-level `.claude/settings.json` wiring the three hooks by absolute path. Both arms get identical prompts and identical turn budgets (24).
+- **A discarded run, and what caught it**: the first measurement loaded arm B's plugin with `--plugin-dir`. That flag registers the plugin in *global* state as a side effect, so every later `claude -p` — including the next baseline screen — silently inherited the verify hook, while arm B itself lost its hooks to a name collision. The tell was inverted timings: the "baseline" ran longer and more carefully than arm B. The verify hook's own per-session marker file doubled as the contamination probe that confirmed it (a bare `claude -p` was writing markers). Root cause ran deeper: the local marketplace is a `directory` source pointing at this repo, so an "installed" plugin loads live repo files regardless of version. `--bare` was no escape either — it drops the login session. Fix: uninstall the global plugin for the duration of the benchmark, give arm B its own in-fixture `.claude/`, clean global state, and re-screen the affected ranges. The harness caught a flaw in its own benchmark — which is the verify hook's whole thesis, applied to ourselves.
 
 ### What superskills contributes here
 
@@ -123,15 +128,31 @@ That is the project's thesis in miniature: as models get stronger, prose process
 
 ### Results
 
-<!-- RESULTS-HEVAL -->
+**Standard HumanEval hard subset** ({101, 144}, 5 trials/arm). Baseline screen: 162/164 clean.
+
+| Arm | pass@1 | HumanEval/101 | HumanEval/144 |
+|-----|--------|---------------|---------------|
+| Baseline (pure model) | 4/10 (40%) | 0/5 | 4/5 |
+| With superskills | 5/10 (**50%**) | 0/5 | 5/5 |
+
+**HumanEval+ (EvalPlus) hard subset** ({101, 132, 151, 154, 163}, 3 trials/arm). The stricter grader.
+
+| Arm | pass@1 | 101 | 132 | 151 | 154 | 163 |
+|-----|--------|-----|-----|-----|-----|-----|
+| Baseline (pure model) | 0/15 (0%) | 0/3 | 0/3 | 0/3 | 0/3 | 0/3 |
+| With superskills | 4/15 (**27%**) | 1/3 | 0/3 | 0/3 | 3/3 | 0/3 |
+
+On problems the baseline cannot solve, superskills converts a portion to passes: +10pp under standard grading, +27pp under the stricter EvalPlus grading. The larger gap under EvalPlus is the point — that grader rewards exactly the boundary-case verification the hook forces. HumanEval/154 (0/3 → 3/3) is the clearest single case: the verify hook drove the model to test its own output and fix what it found.
+
+Honest residual: HumanEval/101 stays 0 in both arms. The planted failure is a trailing-separator edge case (`"a, b,"` → drop the empty tail); the model's self-generated checks did not always enumerate it, so the hook fires but the model still ships the bug. Enforcement makes the model verify; it does not guarantee the model imagines every edge case. That is the next round's problem, not a solved one. The mean-time columns also show arm B costs more wall-clock (it does real work the baseline skips) — the trade is latency for correctness.
 
 ## Reproducing
 
 ```bash
-./tests/bench/freeze-specs.sh     # optional: regenerate arm-B specs with the real discover skill
-./tests/bench/run.sh --trials 3   # full suite, writes tests/bench/results/report.md
-./tests/bench/run.sh --scenarios s2 --trials 5   # one scenario, more trials
-./tests/bench/heval-hard.sh                      # community hard subset: screen + measure
+./tests/bench/freeze-specs.sh                    # optional: regenerate arm-B specs via the real discover skill
+./tests/bench/run.sh --trials 3                  # capability suite (S1–S4 + control)
+./tests/bench/heval-hard.sh                      # standard HumanEval hard subset: screen + measure
+./tests/bench/heval-hard.sh --plus               # HumanEval+ (EvalPlus) hard subset
 ```
 
-Prerequisites: `claude` CLI logged in, the superskills plugin installed and enabled, Node ≥ 18, Python 3 for the control group.
+Prerequisites: `claude` CLI logged in, Node ≥ 18, Python 3. Important: the superskills plugin must **not** be installed at user scope while `heval-hard.sh` runs — the local `directory` marketplace would load live repo files into every baseline trial and contaminate arm A. The script gives arm B its own in-fixture `.claude/`, so a global install is both unnecessary and harmful here.

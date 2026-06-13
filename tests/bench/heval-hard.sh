@@ -35,21 +35,32 @@ while [[ $# -gt 0 ]]; do
     --rescreen) RESCREEN=1; shift ;;
     --hard) HARD_OVERRIDE="$2"; shift 2 ;;   # measure these ids, skip screening
     --append) APPEND=1; shift ;;             # append to results instead of truncating
+    --plus) PLUS=1; shift ;;                 # EvalPlus grading (HumanEval+)
     *) echo "unknown option: $1" >&2; exit 1 ;;
   esac
 done
 
-DATA="$BENCH_DIR/humaneval/HumanEval.jsonl"
-[[ -f "$DATA" ]] || gunzip -kc "$BENCH_DIR/humaneval/HumanEval.jsonl.gz" > "$DATA"
+PLUS="${PLUS:-0}"
+if [[ "$PLUS" == 1 ]]; then
+  DATA="$BENCH_DIR/humaneval/HumanEvalPlus.jsonl"
+  [[ -f "$DATA" ]] || gunzip -kc "$BENCH_DIR/humaneval/HumanEvalPlus.jsonl.gz" > "$DATA"
+  GRADER="$BENCH_DIR/humaneval/grade-plus.py"
+  TAG="heval-plus"
+else
+  DATA="$BENCH_DIR/humaneval/HumanEval.jsonl"
+  [[ -f "$DATA" ]] || gunzip -kc "$BENCH_DIR/humaneval/HumanEval.jsonl.gz" > "$DATA"
+  GRADER="$BENCH_DIR/humaneval/grade.py"
+  TAG="heval"
+fi
 
 WORK="$(mktemp -d)"
 if [[ "${BENCH_KEEP:-0}" != 1 ]]; then trap 'rm -rf "$WORK"' EXIT; fi
 echo "work dir: $WORK"
 mkdir -p "$BENCH_DIR/results"
-SCREEN="$BENCH_DIR/results/heval-screen.jsonl"
-RESULTS="$BENCH_DIR/results/heval-results.jsonl"
+SCREEN="$BENCH_DIR/results/$TAG-screen.jsonl"
+RESULTS="$BENCH_DIR/results/$TAG-results.jsonl"
 
-ALLOWED="Read,Glob,Grep,Write,Edit,MultiEdit,Skill,TodoWrite,Bash(python3:*),Bash(ls:*),Bash(cat:*),Bash(git:*),Bash(mkdir:*),Bash(rm:*),Bash(chmod:*)"
+ALLOWED="Read,Glob,Grep,Write,Edit,MultiEdit,Skill,TodoWrite,Bash(python3:*),Bash(python:*),Bash(ls:*),Bash(cat:*),Bash(git:*),Bash(mkdir:*),Bash(rm:*),Bash(chmod:*)"
 
 throttle() { while (( $(jobs -rp | wc -l) >= CONC )); do sleep 2; done; }
 
@@ -62,6 +73,11 @@ extract_problem() { # index outfile
   ' "$DATA" "$1" "$2"
 }
 
+# Arm isolation, fully project-contained (no global plugin state):
+# - Arm A runs with --bare (no hooks, no plugins, no user settings).
+# - Arm B embeds superskills INSIDE the fixture: discover-generated specs,
+#   the plugin's skills under .claude/skills/, and project-level
+#   .claude/settings.json wiring the hooks by absolute path.
 make_fixture() { # dir arm
   local dir="$1" arm="$2"
   mkdir -p "$dir"
@@ -70,6 +86,24 @@ make_fixture() { # dir arm
     printf '# pyfix\n' > "$dir/CLAUDE.md"
   else
     cp -R "$BENCH_DIR/fixtures/pyfix-specs/." "$dir"
+    mkdir -p "$dir/.claude/skills"
+    for s in learn discover clarify test; do
+      cp -R "$PLUGIN_DIR/skills/$s" "$dir/.claude/skills/$s"
+    done
+    cat > "$dir/.claude/settings.json" <<EOF
+{
+  "hooks": {
+    "SessionStart": [
+      { "matcher": "startup|resume|clear",
+        "hooks": [{ "type": "command", "command": "node \"$PLUGIN_DIR/hooks/session-start.js\"", "timeout": 10 }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "node \"$PLUGIN_DIR/hooks/stop-verify.js\"", "timeout": 15 }] },
+      { "hooks": [{ "type": "command", "command": "node \"$PLUGIN_DIR/hooks/stop-learn.js\"", "timeout": 15 }] }
+    ]
+  }
+}
+EOF
   fi
   git -C "$dir" init -q
   git -C "$dir" config user.email bench@local
@@ -79,16 +113,16 @@ make_fixture() { # dir arm
 }
 
 # Identical prompt and turn budget for both arms; only the artifacts differ.
-# Arm B loads the plugin per-run (--plugin-dir), hermetic against whatever is
-# installed at user scope; arm A additionally has the Skill tool disallowed.
+# Arm A: Skill disallowed, no superskills anywhere (the superskills plugin
+#   must NOT be installed at user scope while this benchmark runs — its local
+#   marketplace resolves to live repo files; --bare is unusable as it drops
+#   auth). Arm B: superskills lives in the fixture's own .claude/.
 run_one() { # dir arm problemFile outfile
   local dir="$1" arm="$2" pfile="$3" outfile="$4"
   local fnprompt extra=()
   fnprompt="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).prompt)' "$pfile")"
   if [[ "$arm" == A ]]; then
     extra+=(--disallowedTools "Skill")
-  else
-    extra+=(--plugin-dir "$PLUGIN_DIR")
   fi
   (cd "$dir" && claude -p "Create solution.py in the project root implementing exactly this function. Keep the given signature and docstring behavior; include any imports it needs. The deliverable is solution.py.
 
@@ -104,7 +138,7 @@ $fnprompt
 
 grade_one() { # dir problemFile -> echoes true/false
   if [[ -f "$1/solution.py" ]] \
-    && python3 "$BENCH_DIR/humaneval/grade.py" "$2" "$1/solution.py" >/dev/null 2>&1; then
+    && python3 "$GRADER" "$2" "$1/solution.py" >/dev/null 2>&1; then
     echo true
   else
     echo false
@@ -173,6 +207,6 @@ for i in "${HARD[@]}"; do
 done
 wait
 
-node "$BENCH_DIR/report-heval.js" "$RESULTS" "$SCREEN" > "$BENCH_DIR/results/heval-report.md"
+node "$BENCH_DIR/report-heval.js" "$RESULTS" "$SCREEN" > "$BENCH_DIR/results/$TAG-report.md"
 echo
-echo "report written to tests/bench/results/heval-report.md"
+echo "report written to tests/bench/results/$TAG-report.md"

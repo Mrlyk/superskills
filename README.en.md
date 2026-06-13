@@ -31,6 +31,17 @@ Measured A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, d
 
 The pattern: when the knowledge is one obvious read away in a tiny fixture, a strong model already behaves (S1, control). The gains appear exactly where superskills operates — knowledge that exists nowhere in the repo (memory), questions nobody asked (clarification), and bugs that fresh tests happily cement in place (test pass). Baseline runs wrote passing test suites around both planted bugs in 3 of 3 trials; the test skill fixed both at root cause in 3 of 3.
 
+### Community benchmarks: HumanEval & HumanEval+ hard subsets
+
+HumanEval is saturated for Sonnet 4.6 (the clean baseline scores 162/164), so raw pass rates can't separate the arms. The community method is to take only the problems the baseline fails and grade them harder. We ran two public benchmarks (methodology, contamination post-mortem, and full data in [docs/benchmark.md](docs/benchmark.md)):
+
+| Benchmark | Hard set | Baseline pass@1 | With superskills | Δ |
+|-----------|----------|-----------------|------------------|---|
+| HumanEval (canonical `check`) | 2 baseline failures | 40% | 50% | **+10pp** |
+| HumanEval+ (EvalPlus, ~80× tests) | 5 baseline failures | 0% | 27% | **+27pp** |
+
+superskills knows nothing about HumanEval. The active ingredient is the final-test-pass capability made automatic — which took three rounds to land: two rounds of prose instruction were ignored, and only a ~100-line `stop-verify` hook (block once if code was edited but never executed; demand a real run over documented examples and boundary cases with root-cause fixes) moved the number. EvalPlus, which exists to catch edge-case bugs, shows the larger gain — exactly what enforcement targets. HumanEval/154 (0/3 → 3/3) is the clearest single case. Honest residual: HumanEval/101 stays 0 in both arms — a trailing-separator edge the model's self-checks didn't enumerate, so the hook fires but the bug still ships. Enforcement makes the model verify; it doesn't make it imagine every edge case. That's the next round.
+
 ## What you get
 
 | Component | Kind | What it does |

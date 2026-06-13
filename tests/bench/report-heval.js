@@ -35,10 +35,11 @@ const a = armTotal('A');
 const b = armTotal('B');
 const pct = (x, n) => (n ? `${Math.round((x / n) * 100)}%` : '-');
 
+const label = process.argv[4] || 'HumanEval';
 const out = [];
-out.push('## HumanEval hard subset — results');
+out.push(`## ${label} hard subset — results`);
 out.push('');
-out.push(`Screening: baseline solved ${screenPass}/${screenN} in the pre-registered range; `
+out.push(`Screening: baseline solved ${screenPass}/${screenN} of the pre-registered range under ${label} grading; `
   + `the ${problems.length} failures form the hard set (HumanEval/${problems.join(', HumanEval/')}).`);
 out.push('');
 out.push('| Arm | pass@1 (trial-level) | Mean time/run |');
