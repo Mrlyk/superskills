@@ -29,7 +29,7 @@ A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, determinis
 | Auto-learning · precision (keeps the rule, drops throwaways under noise) | 0% | 100% | **+100pp** |
 | Cross-session memory (reuses persisted team decisions) | 20% | 100% | **+80pp** |
 | Requirement clarification (asked-before-guessing rate) | 0% | 67% | **+67pp** |
-| Clarification · self-triggered (Discover's AGENTS.md directive; asks when a task cites an unknowable convention) | 33% | 100% | **+67pp** |
+| Clarification · self-triggered (Discover's AGENTS.md directive; asks when a task cites an unknowable convention, 6 trials) | 67% | 100% | **+33pp** |
 | Final test pass (2 planted bugs in "just developed" code) | 40% | 100% | **+60pp** |
 | Convention adherence (rules scattered in docs) | 100% | 100% | even |
 | HumanEval hard subset (canonical `check`) | 40% | 50% | **+10pp** |
