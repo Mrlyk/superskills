@@ -21,7 +21,7 @@ superskills keeps exactly these four things and deletes everything else.
 
 ## Benchmarks
 
-A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, deterministic graders. HumanEval is saturated for a strong model (the clean baseline scores 162/164), so the community method is to take only the problems the baseline fails and grade them harder with EvalPlus (~80× tests per problem). Across three community benchmarks the lift tracks whether the acceptance criteria are visible to the model: HumanEval+/MBPP+ (visible examples + implied boundaries) gain; SWE-bench Lite (real multi-file repos, hidden acceptance tests, where the model already runs the suite itself) lands at parity with no regression. Full methodology, contamination post-mortem, and per-check tables in [docs/benchmark.en.md](docs/benchmark.en.md).
+A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, deterministic graders. Full methodology, contamination post-mortem, and per-check tables in [docs/benchmark.en.md](docs/benchmark.en.md).
 
 | Scenario | Baseline (pure model) | With superskills | Δ |
 |----------|----------------------|------------------|---|
@@ -34,7 +34,6 @@ A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, determinis
 | HumanEval hard subset (canonical `check`) | 40% | 50% | **+10pp** |
 | HumanEval+ hard subset (EvalPlus, full-range, 8 trials) | 20.5% | 30.7% | **+10pp** |
 | MBPP+ hard subset (EvalPlus, 6 trials) | 21.7% | 25.0% | **+3pp** |
-| SWE-bench Lite (real multi-file repos, 11 gold-validated instances, pass@1) | 6/11 | 6/11 | **even** |
 | Control: HumanEval/0–9 verbatim | 10/10 | 10/10 | **no regression** |
 
 ## Install
