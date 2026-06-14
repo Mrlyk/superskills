@@ -2,8 +2,10 @@
 'use strict';
 // superskills Stop hook: verify-before-done.
 // If the session edited code files but never executed anything afterwards,
-// block the stop once and ask the model to run the changed behavior
-// (documented examples + boundary cases) before finishing.
+// block the stop and ask the model to run the changed behavior (documented
+// examples + boundary cases) before finishing. Re-arms per coding round: fires
+// again whenever NEW code is edited beyond the last edit it already blocked on,
+// so a multi-task session is verified each round — not just once total.
 // Silent in every other case.
 
 const fs = require('fs');
@@ -30,6 +32,23 @@ function inGitRepo(dir) {
     cur = path.dirname(cur);
   }
   return false;
+}
+
+function readState(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
+}
+
+// One tiny JSON per session; drop entries older than a week so state never grows
+// without bound.
+const STATE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+function pruneOldState(dir) {
+  const cutoff = Date.now() - STATE_TTL_MS;
+  let names = [];
+  try { names = fs.readdirSync(dir); } catch { return; }
+  for (const f of names) {
+    const p = path.join(dir, f);
+    try { if (fs.statSync(p).mtimeMs < cutoff) fs.unlinkSync(p); } catch { /* ignore */ }
+  }
 }
 
 // Returns {lastCodeEdit, lastRun}: indices of the last code-file edit and the
@@ -72,17 +91,21 @@ function main() {
   const sessionId = String(input.session_id || '').replace(/[^a-zA-Z0-9_-]/g, '');
   if (!sessionId) return;
 
-  const dir = stateDir();
-  fs.mkdirSync(dir, { recursive: true });
-  const marker = path.join(dir, `${sessionId}.verified`);
-  if (fs.existsSync(marker)) return; // at most once per session
-
   const transcript = input.transcript_path;
   if (!transcript || !fs.existsSync(transcript)) return;
   const { lastCodeEdit, lastRun } = scanTranscript(transcript);
   if (lastCodeEdit === -1 || lastRun > lastCodeEdit) return; // nothing to verify
 
-  fs.writeFileSync(marker, new Date().toISOString());
+  const dir = stateDir();
+  fs.mkdirSync(dir, { recursive: true });
+  pruneOldState(dir);
+
+  // Re-arm per coding round: only fire for code edited AFTER the edit we last
+  // blocked on. Re-running the same state stays silent; a fresh edit re-fires.
+  const stateFile = path.join(dir, `${sessionId}.verify.json`);
+  const st = readState(stateFile) || { verifiedEdit: -1 };
+  if (lastCodeEdit <= st.verifiedEdit) return;
+  fs.writeFileSync(stateFile, JSON.stringify({ verifiedEdit: lastCodeEdit }));
   process.stdout.write(JSON.stringify({
     decision: 'block',
     reason:

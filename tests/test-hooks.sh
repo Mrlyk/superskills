@@ -143,7 +143,20 @@ out="$(run_verify vs-1 "$TV" "$REPO")"
 assert_contains "unexecuted code edit blocks stop" "$out" '"decision":"block"'
 assert_contains "reason demands boundary cases" "$out" "boundary cases"
 out="$(run_verify vs-1 "$TV" "$REPO")"
-assert_empty "verify fires at most once per session" "$out"
+assert_empty "re-running same edit state stays silent" "$out"
+
+# A NEW code edit after a prior block re-arms verify (not once-per-session).
+TVR="$TMP/t-rearm.jsonl"
+{
+  echo '{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Write","input":{"file_path":"a.py"}}]}}'
+} > "$TVR"
+out="$(run_verify vs-rearm "$TVR" "$REPO")"
+assert_contains "rearm: first edit blocks" "$out" '"decision":"block"'
+out="$(run_verify vs-rearm "$TVR" "$REPO")"
+assert_empty "rearm: same edit state stays silent" "$out"
+echo '{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Edit","input":{"file_path":"b.py"}}]}}' >> "$TVR"
+out="$(run_verify vs-rearm "$TVR" "$REPO")"
+assert_contains "rearm: new edit re-fires verify" "$out" '"decision":"block"'
 
 # Code edited, then executed -> silent.
 TV2="$TMP/t-verified.jsonl"
