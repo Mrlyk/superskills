@@ -25,17 +25,17 @@ A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, determinis
 
 | Scenario | Baseline (pure model) | With superskills | Δ |
 |----------|----------------------|------------------|---|
-| Auto-learning · recall (persists code-invisible decisions) | 0% | 100% | **+100pp** |
-| Auto-learning · precision (keeps the rule, drops throwaways under noise) | 0% | 100% | **+100pp** |
-| Cross-session memory (reuses persisted team decisions) | 20% | 100% | **+80pp** |
-| Requirement clarification (asked-before-guessing rate) | 0% | 67% | **+67pp** |
-| Clarification · self-triggered (Discover's AGENTS.md directive; asks when a task cites an unknowable convention, 6 trials) | 67% | 100% | **+33pp** |
-| Final test pass (2 planted bugs in "just developed" code) | 40% | 100% | **+60pp** |
-| Convention adherence (rules scattered in docs) | 100% | 100% | even |
-| HumanEval hard subset (canonical `check`) | 40% | 50% | **+10pp** |
-| HumanEval+ hard subset (EvalPlus, full-range, 8 trials) | 20.5% | 30.7% | **+10pp** |
-| MBPP+ hard subset (EvalPlus, 6 trials) | 21.7% | 25.0% | **+3pp** |
-| Control: HumanEval/0–9 verbatim | 10/10 | 10/10 | **no regression** |
+| Auto-learning · recall | 0% | 100% | **+100pp** |
+| Auto-learning · precision | 0% | 100% | **+100pp** |
+| Cross-session memory | 20% | 100% | **+80pp** |
+| Requirement clarification | 0% | 67% | **+67pp** |
+| Clarification · self-triggered | 67% | 100% | **+33pp** |
+| Final test pass | 40% | 100% | **+60pp** |
+| Convention adherence | 100% | 100% | even |
+| HumanEval hard subset | 40% | 50% | **+10pp** |
+| HumanEval+ hard subset | 20.5% | 30.7% | **+10pp** |
+| MBPP+ hard subset | 21.7% | 25.0% | **+3pp** |
+| Control: HumanEval/0–9 | 10/10 | 10/10 | **no regression** |
 
 ## Install
 
@@ -87,19 +87,19 @@ After install, almost everything runs automatically — no configuration:
 - **Session end**: Stop hooks verify (blocks once if code was edited but never actually run) and auto-learn (persists durable learnings in the background when the session did real work).
 - **During development**: skills like clarify and test trigger automatically on relevant requests, or invoke them explicitly (`/superskills:discover`, etc.).
 
-The one thing to do by hand, once per project: **run the `discover` skill the first time you work in a new project**. It scans the project and generates `.superskills/conventions.md`, `AGENTS.md`, and `CLAUDE.md` — commit those files. This establishes the conventions baseline and activates the file-reference channel in `CLAUDE.md` / `AGENTS.md`; if you skip it, the SessionStart hook reminds you. After that it's hands-off — learnings accumulate, conventions load every session, and when they drift too far (>30 commits behind HEAD) the hook nudges you to re-run discover.
+The one thing to do by hand, once per project: **run the `discover` skill the first time you work in a new project**. It generates `.superskills/conventions.md`, `AGENTS.md`, and `CLAUDE.md` — commit them. After that it's hands-off; if you skip it, the SessionStart hook reminds you.
 
 ## What you get
 
 | Component | Kind | What it does |
 |-----------|------|--------------|
-| `superskills:discover` | skill | Scans an existing project and generates minimal spec files: `.superskills/conventions.md` (≤80 lines), `AGENTS.md`, `CLAUDE.md`. Refreshes them when stale, folding hardened learnings into conventions. |
-| `superskills:learn` | skill | Persists durable learnings (user corrections, pitfalls + fixes, invisible decisions) to `.superskills/learnings/`. |
-| `superskills:clarify` | skill | Surfaces only the questions whose answers change the implementation, with recommended answers, then starts coding. |
-| `superskills:test` | skill | One full unit-test pass after development is done. Result-driven, no fixed process. |
-| SessionStart hook | hook | Injects the learnings index into each session; reminds you when conventions drift >30 commits behind HEAD; suggests `discover` for projects with no AI specs. |
-| Stop hook (verify) | hook | Verify-before-done: if the session edited code but never executed it afterwards, blocks the stop once and demands a real run — documented examples plus boundary cases — with root-cause fixes. |
-| Stop hook (learn) | hook | Auto-learning: when a session did real work (≥5 user messages and file edits), spawns a background learner that reads a session replay and persists durable learnings off the main thread — re-firing as the session grows so work after the first summary is captured too. The learner picks its CLI per platform — `claude -p` on Claude Code (default Sonnet for cost), `codex exec` on Codex — falling back to one inline judgment when no background learner can be launched. |
+| `superskills:discover` | skill | Scans the project and generates spec files (`conventions.md` ≤80 lines, `AGENTS.md`, `CLAUDE.md`); refreshes when stale. |
+| `superskills:learn` | skill | Persists user corrections, pitfalls, and code-invisible decisions to `.superskills/learnings/`. |
+| `superskills:clarify` | skill | Asks only the questions that change the implementation, then codes. |
+| `superskills:test` | skill | One full unit-test pass after development; result-driven. |
+| SessionStart hook | hook | Injects the learnings index; suggests `discover` when conventions are stale or missing. |
+| Stop hook (verify) | hook | If code was edited but never run, blocks the stop once and demands a real run (documented examples + boundary cases) with root-cause fixes. |
+| Stop hook (learn) | hook | Persists learnings in the background when the session did real work — non-blocking, re-firing as the session grows; picks its learner per platform (`claude -p` default Sonnet on Claude Code, `codex exec` on Codex). |
 
 Everything shows up in the `/plugin` panel with per-component token costs. Total always-on cost: ~418 tokens.
 
@@ -125,7 +125,7 @@ Two channels, chosen so the core works even without hooks:
 - **Conventions** load through file references: `CLAUDE.md` imports them for Claude Code and Aone Copilot; `AGENTS.md` instructs Codex to read them. Zero hook dependency, works in every tool.
 - **Learnings** load as an index via the SessionStart hook (Claude Code / Aone Copilot); on Codex, superskills wires only the Stop learner, so its `AGENTS.md` pointer guides the model to the index instead. The model reads a one-line-per-topic index and opens a full topic page only when relevant — past knowledge costs a few hundred tokens, not thousands.
 
-Learnings are organized as a topic wiki — one page per topic, new learnings merged in and deduplicated rather than piled up by date (see [docs/learnings-wiki.en.md](docs/learnings-wiki.en.md)). Those that harden into stable rules get folded into `conventions.md` by `discover`'s refresh mode, keeping the knowledge base from growing forever.
+Learnings are organized as a topic wiki — one page per topic, merged and deduplicated (see [docs/learnings-wiki.en.md](docs/learnings-wiki.en.md)); rules that harden get folded into `conventions.md` by `discover`'s refresh, keeping the base from growing forever.
 
 ## Testing
 
