@@ -48,6 +48,8 @@ A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, determinis
 
 Or from the CLI: `claude plugin marketplace add Mrlyk/superskills && claude plugin install superskills@superskills`. Hooks register automatically with the plugin; nothing touches your `settings.json`.
 
+Or install from the aggregated marketplace as a one-stop entry: `/plugin marketplace add Mrlyk/cc-plugins` then `/plugin install superskills@mrlyk-plugins` — the same marketplace also carries the author's other plugins (e.g. cc-commitely).
+
 ### Codex (plugin)
 
 ```bash
@@ -76,6 +78,16 @@ To enable superskills in a single project without touching your global setup: in
 | Aone Copilot | `~/.aone_copilot/skills/ss-*` | yes | `install.sh --project` (lands in `.aone_copilot/`) |
 
 `./install.sh --tools claude` remains a legacy settings-based install for environments without marketplace access. `--uninstall` reverses everything and preserves your own settings. Then, in each project, run the discover skill once and commit the generated files.
+
+## First use
+
+After install, almost everything runs automatically — no configuration:
+
+- **Session start**: the SessionStart hook injects this project's persisted learnings index; if the project has no spec files it suggests running discover, and reminds you to refresh when conventions drift.
+- **Session end**: Stop hooks verify (blocks once if code was edited but never actually run) and auto-learn (persists durable learnings in the background when the session did real work).
+- **During development**: skills like clarify and test trigger automatically on relevant requests, or invoke them explicitly (`/superskills:discover`, etc.).
+
+The one thing to do by hand, once per project: **run the `discover` skill the first time you work in a new project**. It scans the project and generates `.superskills/conventions.md`, `AGENTS.md`, and `CLAUDE.md` — commit those files. This establishes the conventions baseline and activates the file-reference channel in `CLAUDE.md` / `AGENTS.md`; if you skip it, the SessionStart hook reminds you. After that it's hands-off — learnings accumulate, conventions load every session, and when they drift too far (>30 commits behind HEAD) the hook nudges you to re-run discover.
 
 ## What you get
 

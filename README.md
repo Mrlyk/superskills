@@ -48,6 +48,8 @@ superskills 只保留这四件事，删掉其余一切。
 
 也可以用 CLI：`claude plugin marketplace add Mrlyk/superskills && claude plugin install superskills@superskills`。hooks 随插件自动注册，不改动你的 `settings.json`。
 
+或从聚合市场一站式安装：`/plugin marketplace add Mrlyk/cc-plugins` 后 `/plugin install superskills@mrlyk-plugins`，同一市场还能装作者的其他插件（如 cc-commitely）。
+
 ### Codex（plugin）
 
 ```bash
@@ -76,6 +78,16 @@ git clone https://github.com/Mrlyk/superskills.git && cd superskills
 | Aone Copilot | `~/.aone_copilot/skills/ss-*` | 支持 | `install.sh --project`（产物进 `.aone_copilot/`） |
 
 无法访问 marketplace 的环境可用 `./install.sh --tools claude` 做传统 settings 安装。`--uninstall` 完整卸载并保留你自己的配置。安装后在每个项目里运行一次 discover skill，把生成的文件提交即可。
+
+## 首次使用
+
+装好后绝大多数能力自动生效，不需要配置：
+
+- **会话开始**：SessionStart hook 自动注入本项目已沉淀的 learnings 索引；项目缺少规范文件时提示你跑 discover，规范过期时提醒刷新。
+- **会话结束**：Stop hook 自动验证（改了代码却没真实运行会拦一次）+ 自动总结（有实质工作时在后台沉淀 learnings）。
+- **开发中**：clarify、test 等 skill 在相关请求下自动触发，也可 `/superskills:discover` 等显式调用。
+
+唯一需要手动做一次的事：**每个新项目首次运行 `discover` skill**。它扫描项目并生成 `.superskills/conventions.md`、`AGENTS.md`、`CLAUDE.md`，把这些文件提交进仓库即可。这一步建立规范基线、并让 `CLAUDE.md` / `AGENTS.md` 的文件引用通道生效；没做时 SessionStart hook 会主动提醒。之后就交给自动机制——learnings 持续累积、规范每次会话自动加载、漂移过多时（落后 HEAD 超过 30 个提交）hook 提醒你重跑 discover 刷新。
 
 ## 包含什么
 
