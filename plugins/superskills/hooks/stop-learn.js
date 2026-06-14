@@ -32,8 +32,10 @@ const MAX_TRANSCRIPT_BYTES = 50 * 1024 * 1024;
 const MARKER_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_REPLAY_BYTES = 16 * 1024;
 const CHILD_MAX_TURNS = '12';
-const ALLOWED_TOOLS =
-  'Read,Glob,Grep,Write,Edit,MultiEdit,Skill,Bash(ls:*),Bash(cat:*),Bash(mkdir:*),Bash(git:*)';
+// The learner runs UNSUPERVISED with acceptEdits, so it gets file tools ONLY —
+// no Bash, no git. It must never be able to commit, push, rm, or clean. Its job
+// is to edit wiki files in the working tree; the user reviews and commits.
+const ALLOWED_TOOLS = 'Read,Glob,Grep,Write,Edit,MultiEdit';
 const WRITE_TOOLS = /"name"\s*:\s*"(Edit|Write|MultiEdit|NotebookEdit)"/;
 
 function envInt(name, fallback) {

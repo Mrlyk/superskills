@@ -27,6 +27,7 @@ Generate or refresh the project's AI-facing spec files. Keep everything short â€
 2. `AGENTS.md` (if missing) â€” max 20 lines: one-paragraph project description, key commands, then exactly these pointers:
    - `Read .superskills/conventions.md before writing code.`
    - `Check .superskills/learnings/INDEX.md for past learnings; read a linked entry when relevant.`
+   - `When a request leaves an implementation-changing decision unresolved, ask with the superskills clarify skill before coding instead of guessing; when it is already specific, just implement.`
    - `Before reporting any coding task as done you must have executed the changed code: run the documented examples plus boundary cases (empty, extreme, malformed, repeated/trailing input) via the test suite or a throwaway script you then delete, fix failures at root cause, and include the run output in your final reply. For larger changes apply the superskills test skill.`
 
    If AGENTS.md exists, only append the pointer lines when missing. Never rewrite existing user content.

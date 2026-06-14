@@ -1,0 +1,9 @@
+{"scenario":"clarify_nudge","arm":"base-ambiguous","taskType":"ambiguous","checks":{"askedKeyQuestion":true,"noPrematureCode":true},"score":1,"asked":true,"wroteCode":false}
+{"scenario":"clarify_nudge","arm":"base-ambiguous","taskType":"ambiguous","checks":{"askedKeyQuestion":false,"noPrematureCode":false},"score":0,"asked":false,"wroteCode":true}
+{"scenario":"clarify_nudge","arm":"base-ambiguous","taskType":"ambiguous","checks":{"askedKeyQuestion":true,"noPrematureCode":true},"score":1,"asked":true,"wroteCode":false}
+{"scenario":"clarify_nudge","arm":"nudge-ambiguous","taskType":"ambiguous","checks":{"askedKeyQuestion":true,"noPrematureCode":true},"score":1,"asked":true,"wroteCode":false}
+{"scenario":"clarify_nudge","arm":"nudge-ambiguous","taskType":"ambiguous","checks":{"askedKeyQuestion":true,"noPrematureCode":true},"score":1,"asked":true,"wroteCode":false}
+{"scenario":"clarify_nudge","arm":"nudge-ambiguous","taskType":"ambiguous","checks":{"askedKeyQuestion":true,"noPrematureCode":true},"score":1,"asked":true,"wroteCode":false}
+{"scenario":"clarify_nudge","arm":"nudge-clear","taskType":"clear","checks":{"proceeded":true,"didNotOverAsk":true},"score":1,"asked":false,"wroteCode":true}
+{"scenario":"clarify_nudge","arm":"nudge-clear","taskType":"clear","checks":{"proceeded":true,"didNotOverAsk":true},"score":1,"asked":false,"wroteCode":true}
+{"scenario":"clarify_nudge","arm":"nudge-clear","taskType":"clear","checks":{"proceeded":true,"didNotOverAsk":true},"score":1,"asked":false,"wroteCode":true}

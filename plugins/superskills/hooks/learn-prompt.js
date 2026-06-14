@@ -29,10 +29,20 @@ const LEARN_INSTRUCTION =
   + 'into future sessions, so a page missing from it (or listed without its '
   + '[link](file.md)) is invisible; then stop.';
 
+// Operational guardrails for the UNSUPERVISED background learner. Kept separate
+// from LEARN_INSTRUCTION (which the benchmark reads) because it constrains the
+// autonomous context, not the learning quality. The hook also enforces this by
+// withholding every tool except Read/Glob/Grep/Write/Edit/MultiEdit.
+const CHILD_GUARDRAILS =
+  'Operating rules: edit only files under .superskills/learnings/. Do not touch '
+  + 'any other file. Merge into existing pages — never delete a page. Do not run '
+  + 'git or any shell command, and never commit or push. Make at most a few edits, '
+  + 'then stop.';
+
 // Render a transcript-derived replay plus the instruction for the background
 // learner. The replay is the only context a fresh `claude -p` session has.
 function buildChildPrompt(replay) {
-  return `${REPLAY_HEADER}\n\n${replay}\n\n${LEARN_INSTRUCTION}`;
+  return `${REPLAY_HEADER}\n\n${replay}\n\n${LEARN_INSTRUCTION}\n\n${CHILD_GUARDRAILS}`;
 }
 
 module.exports = { REPLAY_HEADER, LEARN_INSTRUCTION, buildChildPrompt };
