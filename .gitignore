@@ -9,3 +9,8 @@ tests/bench/ss_*.json
 tests/bench/results/ss_*.json
 tests/bench/results/swe-pred-*.jsonl
 tests/bench/results/pred8-*.jsonl
+tests/bench/results/pred-r[3-9]*-B.jsonl
+tests/bench/results/pred-tdd-*-B.jsonl
+tests/bench/results/pred-base-*-B.jsonl
+tests/bench/results/pred-reprogate-B.jsonl
+tests/bench/results/pred-letitcook-B.jsonl

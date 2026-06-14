@@ -139,15 +139,19 @@ The method matches the single-function sets, but each instance gets a **runnable
 
 The mechanism is clean: SWE-bench's acceptance tests are **hidden** from the model. On agentic multi-file tasks Sonnet already runs the visible suite on its own — across the 12 baseline arm-B sessions the model ran pytest **12/12**, while `stop-verify.js` fired **0/12** (it only triggers when code was edited but never executed, which never holds, so the verify hook is **dormant** here). Even when it does fire it can only force runs against *visible* tests, which cannot close the gap to a hidden acceptance criterion.
 
-To empirically confirm no lever helps, two optimization variants targeting different mechanisms were run, each re-generating only arm B:
+To empirically confirm no lever helps, a full optimization loop was run — 11 distinct levers plus 6 variance-replication passes, ~17 arm-B re-generations. On the full 11, the shipped config, a generic bug-fix conventions injection, and a forced verify hook all give the same 6/11. Then, focusing on the 5 instances both arms fail, each lever re-generated only arm B (env cached, fast per round):
 
-| Variant | SWE-bench Lite pass@1 | vs baseline |
-|---------|--------|--------|
-| Shipped superskills | 6/11 | parity |
-| + generic bug-fix conventions (reproduce first, root cause, edges, check regressions) | 6/11 | same set, a reasoning-aid prompt gains nothing |
-| Forced verify hook (reproduce-the-issue + regression check even after the model tested; fired on all 11) | 6/11 | same set, forced extra verification gains nothing |
+| Lever (injected into arm B only, all experiment-only) | of the 5 unsolved |
+|---------|--------|
+| conv-tdd (write a failing repro test first) | 1 (flask-4992) |
+| conv-readtests / conv-plan / conv-edges / conv-combined | 0 each |
+| conv-combined + forced verify hook | 1 (flask-4992) |
+| repro-gate hook (must write+run a standalone repro to finish) | 0 |
+| let-it-cook (TDD + turn budget 50→80) | 0 |
 
-All four configurations (pure model, shipped, +conventions, forced verify) **converge on the identical 6/11** — even the strongest verify lever, firing on all 11 instances, moved nothing. Honest conclusion: on SWE-bench superskills is at **structural parity**. With acceptance criteria hidden the verify hook has nothing to bite; memory / clarify / discover-conventions don't apply within a single fresh-repo session; the bottleneck is producing the *correct* fix for the 5 hard instances, which is not something superskills provides. This completes the three-benchmark picture: **the lift tracks whether the acceptance criteria are visible to the model and whether the knowledge lives outside the repo code** — HumanEval+ (visible examples + implied boundaries) +10pp, MBPP+ +3pp, SWE-bench (hidden acceptance) even. No shipped config was changed (conventions and the variant hook are experiment-only), so the HumanEval+/MBPP+ numbers hold by construction — no regression.
+Only flask-4992 ever flipped, and only in 2 of the 9 levers — conv-combined, which contains the same "write a repro test first" instruction, did *not* flip it. The decisive variance check: pure conv-tdd on flask-4992 replicated **0/3** (1/4 including the first), and baseline on the same instance is **0/4**. flask-4992 is a ~15% run-to-run-variance instance; the 2 flips are noise, not a lever effect.
+
+Across ~17 re-generations no superskills lever reliably moves the SWE-bench resolve rate. Honest conclusion: on SWE-bench superskills is at **structural parity**. With acceptance criteria hidden the verify hook has nothing to bite; memory / clarify / discover-conventions don't apply within a single fresh-repo session; the bottleneck is producing the *correct* fix for the 5 hard instances, which is not something superskills provides. This completes the three-benchmark picture: **the lift tracks whether the acceptance criteria are visible to the model and whether the knowledge lives outside the repo code** — HumanEval+ (visible examples + implied boundaries) +10pp, MBPP+ +3pp, SWE-bench (hidden acceptance) even. No shipped config was changed (conventions and the variant hook are experiment-only), so the HumanEval+/MBPP+ numbers hold by construction — no regression.
 
 ## Optimization loop: no free lunch
 

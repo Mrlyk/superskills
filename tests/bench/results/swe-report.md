@@ -36,16 +36,27 @@ here). The verify hook is dormant; even firing, it can only force runs against
 visible tests, not the hidden acceptance criterion. The bottleneck is producing
 the correct fix, which superskills does not provide.
 
-## Optimization variants (arm B re-generated; no shipped config changed)
+## Optimization loop (11 levers + 6 variance passes, ~17 arm-B re-gens; no shipped config changed)
 
-| Variant | resolved | vs baseline |
-|---------|----------|-------------|
-| Shipped superskills | 6/11 | parity |
-| + generic bug-fix conventions | 6/11 | same set — reasoning-aid prompt gains nothing |
-| Forced reproduce+regression verify hook (fired 11/11) | 6/11 | same set — forced verification gains nothing |
+Full 11: shipped, +conv-bugfix, +forced-verify hook → all 6/11 (same set). Then,
+on the 5 unsolved instances, each lever re-generated arm B (`swebench/opt-loop.sh`,
+results in `opt-results.txt`):
 
-All four configurations converge on the identical 6/11. Conclusion: structural
-parity on SWE-bench; no superskills lever moves the metric because the bottleneck
-(producing the right fix against a hidden acceptance test) is orthogonal to what
-superskills provides. Three-benchmark picture: lift tracks visibility of the
-acceptance criteria — HumanEval+ +10pp, MBPP+ +3pp, SWE-bench even, no regression.
+| Lever | of 5 unsolved |
+|-------|---------------|
+| conv-tdd (write failing repro test first) | 1 (flask-4992) |
+| conv-readtests / conv-plan / conv-edges / conv-combined | 0 each |
+| conv-combined + forced verify hook | 1 (flask-4992) |
+| repro-gate hook | 0 |
+| let-it-cook (TDD + turns 80) | 0 |
+
+Only flask-4992 ever flipped (2 of 9 levers) — but not in conv-combined, which has
+the same TDD instruction. Decisive variance check: pure conv-tdd on flask-4992
+replicated 0/3 (1/4 total), baseline 0/4. flask-4992 is a ~15% run-to-run-variance
+instance; the flips are noise, not a lever effect.
+
+Conclusion: across ~17 re-generations no superskills lever reliably moves the
+SWE-bench resolve rate. The bottleneck (producing the right fix against a hidden
+acceptance test) is orthogonal to what superskills provides. Shipped config stays
+optimal at 6/11. Three-benchmark picture: lift tracks visibility of the acceptance
+criteria — HumanEval+ +10pp, MBPP+ +3pp, SWE-bench even, no regression.
