@@ -1,6 +1,8 @@
 # superskills
 
-**Less is more.** 极简 Coding Harness，以 Claude Code 与 Codex 双官方 plugin 形式交付：4 个 skill、3 个 hook、常驻成本约 418 token。Aone Copilot 由安装脚本覆盖。
+**Less is more.** 
+
+极简 Coding Harness 工具包
 
 <p align="center"><img src="assets/hero.svg" alt="superskills — Less is more：删掉重型流程，保留 4 个产生复利的 skill 与项目级记忆闭环" width="880"></p>
 
@@ -19,7 +21,7 @@ superskills 只保留这四件事，删掉其余一切。
 
 ## 基准数据
 
-同任务、同模型（Sonnet 4.6）、真实端到端运行、确定性程序评分的 A/B 对照。HumanEval 对强模型已基本饱和（洁净基线 164 题做对 162），所以社区标准做法是只取基线做不出的题，并用更严格的 EvalPlus 评分（每题约 80× 用例）。完整方法学、污染排查与分项数据见 [docs/benchmark.md](docs/benchmark.md)。
+同任务、同模型（Sonnet 4.6）、真实端到端运行、确定性程序评分的 A/B 对照。HumanEval 对强模型已基本饱和（洁净基线 164 题做对 162），所以社区标准做法是只取基线做不出的题，并用更严格的 EvalPlus 评分（每题约 80× 用例）。三个社区基准的增益与「验收标准是否对模型可见」强相关：HumanEval+/MBPP+（可见示例 + 隐含边界）有正增益；SWE-bench Lite（多文件真实仓库、验收测试隐藏、模型本就自跑测试）与基线持平、无回退。完整方法学、污染排查与分项数据见 [docs/benchmark.md](docs/benchmark.md)。
 
 | 场景 | 基线（纯模型） | 带 superskills | Δ |
 |------|--------------|----------------|---|
@@ -32,6 +34,7 @@ superskills 只保留这四件事，删掉其余一切。
 | HumanEval 困难子集（官方 check） | 40% | 50% | **+10pp** |
 | HumanEval+ 困难子集（EvalPlus 全量，8 次） | 20.5% | 30.7% | **+10pp** |
 | MBPP+ 困难子集（EvalPlus，6 次） | 21.7% | 25.0% | **+3pp** |
+| SWE-bench Lite（多文件真实仓库，11 个 gold 验证实例，pass@1） | 6/11 | 6/11 | **持平** |
 | 控制组：HumanEval/0–9 原题 | 10/10 | 10/10 | **无回归** |
 
 ## 安装

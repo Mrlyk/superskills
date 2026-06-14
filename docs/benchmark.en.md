@@ -115,7 +115,7 @@ The honest reading across six rounds: superskills' verify hook reliably converts
 
 ## MBPP+: a second community benchmark
 
-To test whether the verify hook's benefit generalizes and to grow the sample (this machine has no Docker, so SWE-bench's official harness is infeasible), a second EvalPlus community set — **MBPP+** (same single-function dimension, larger pool) — was added. Same method: screen 0–79 → a 10-problem hard set, 6 trials/arm:
+To test whether the verify hook's benefit generalizes and to grow the sample, a second EvalPlus community set — **MBPP+** (same single-function dimension, larger pool) — was added. Same method: screen 0–79 → a 10-problem hard set, 6 trials/arm:
 
 | Arm | MBPP+ hard pass@1 (10 problems, 6 trials) |
 |-----|--------|
@@ -123,6 +123,31 @@ To test whether the verify hook's benefit generalizes and to grow the sample (th
 | With superskills | 15/60 (25.0%), **+3pp** |
 
 A small positive gain, same direction as HumanEval+ but smaller: the verify hook converts boundary bugs here too, but MBPP+ has more algorithm problems where forced verification over-corrects a borderline-right solution (e.g. 56 `eulerian_num`), offsetting part of the gain. At 3 trials it read −3pp — noise; at 6 trials it stabilizes at +3pp, confirming small samples are not trustworthy.
+
+## SWE-bench Lite: a third community benchmark (real multi-file repos)
+
+With Docker installed, the third — and on paper the highest-harness-leverage — community benchmark was added: **SWE-bench Lite**, real GitHub issues fixed across multi-file repositories, graded by the official `swebench` Docker harness on hidden FAIL_TO_PASS + PASS_TO_PASS tests.
+
+The method matches the single-function sets, but each instance gets a **runnable environment**: the repo is checked out at `base_commit` with the project installed editable plus an era-appropriate pytest, so the model can actually reproduce the bug and run tests. Arm A is the pure model; arm B drops superskills into the checkout's `.claude/` (4 skills + 3 hooks). The model patch (git diff, with superskills and venv droppings excluded) is graded by the official harness, pass@1. The subset is 11 gold-validated instances — the ones whose gold patch resolves in this machine's arm64 Docker grader (12 were attempted; pylint ×3 dropped because their instance image fails to build on arm64, requests ×1 because its tests need real network and even gold scores 2 failed / 108 errors).
+
+| Arm | SWE-bench Lite pass@1 (11 gold-validated instances) |
+|-----|--------|
+| Baseline (pure model) | 6/11 (54.5%) |
+| With superskills | 6/11 (**54.5%**) |
+
+**Exact parity, and the same 6 instances are resolved** — the 5 both fail are identical too. superskills changes nothing about *which* problems get solved.
+
+The mechanism is clean: SWE-bench's acceptance tests are **hidden** from the model. On agentic multi-file tasks Sonnet already runs the visible suite on its own — across the 12 baseline arm-B sessions the model ran pytest **12/12**, while `stop-verify.js` fired **0/12** (it only triggers when code was edited but never executed, which never holds, so the verify hook is **dormant** here). Even when it does fire it can only force runs against *visible* tests, which cannot close the gap to a hidden acceptance criterion.
+
+To empirically confirm no lever helps, two optimization variants targeting different mechanisms were run, each re-generating only arm B:
+
+| Variant | SWE-bench Lite pass@1 | vs baseline |
+|---------|--------|--------|
+| Shipped superskills | 6/11 | parity |
+| + generic bug-fix conventions (reproduce first, root cause, edges, check regressions) | 6/11 | same set, a reasoning-aid prompt gains nothing |
+| Forced verify hook (reproduce-the-issue + regression check even after the model tested; fired on all 11) | 6/11 | same set, forced extra verification gains nothing |
+
+All four configurations (pure model, shipped, +conventions, forced verify) **converge on the identical 6/11** — even the strongest verify lever, firing on all 11 instances, moved nothing. Honest conclusion: on SWE-bench superskills is at **structural parity**. With acceptance criteria hidden the verify hook has nothing to bite; memory / clarify / discover-conventions don't apply within a single fresh-repo session; the bottleneck is producing the *correct* fix for the 5 hard instances, which is not something superskills provides. This completes the three-benchmark picture: **the lift tracks whether the acceptance criteria are visible to the model and whether the knowledge lives outside the repo code** — HumanEval+ (visible examples + implied boundaries) +10pp, MBPP+ +3pp, SWE-bench (hidden acceptance) even. No shipped config was changed (conventions and the variant hook are experiment-only), so the HumanEval+/MBPP+ numbers hold by construction — no regression.
 
 ## Optimization loop: no free lunch
 
@@ -146,6 +171,7 @@ Of five variants the shipped R1 is the optimum: more aggressive/verbose makes a 
 ./tests/bench/heval-hard.sh                      # standard HumanEval hard subset: screen + measure
 ./tests/bench/heval-hard.sh --plus --screen-range 0:163 --rescreen   # HumanEval+ full-range hard subset
 ./tests/bench/heval-hard.sh --mbpp --screen-range 0:79 --rescreen    # MBPP+ hard subset (second community benchmark)
+./tests/bench/swe-bench.sh --subset-file tests/bench/swebench/subset-lite.txt   # SWE-bench Lite A/B (third community benchmark, needs Docker)
 ```
 
-Prerequisites: `claude` CLI logged in, Node ≥ 18, Python 3. Important: the superskills plugin must **not** be installed at user scope while `heval-hard.sh` runs — the local `directory` marketplace would load live repo files into every baseline trial and contaminate arm A. The script gives arm B its own in-fixture `.claude/`, so a global install is both unnecessary and harmful here.
+Prerequisites: `claude` CLI logged in, Node ≥ 18, Python 3; SWE-bench additionally needs Docker (daemon able to reach the image registry directly), `uv`, and `swebench` installed once into a `uv venv`. On Apple Silicon, swebench 4.x hardcodes x86_64 (unusably slow under QEMU), so `swebench/swe_eval.py` switches image builds back to native arm64. Important: the superskills plugin must **not** be installed at user scope while `heval-hard.sh` or `swe-bench.sh` runs — the local `directory` marketplace would load live repo files into every baseline trial and contaminate arm A. The scripts give arm B its own in-fixture `.claude/`, so a global install is both unnecessary and harmful here.
