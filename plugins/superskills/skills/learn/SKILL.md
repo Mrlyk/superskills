@@ -20,7 +20,7 @@ Do NOT persist: one-off task details, facts readable from the code, generic prog
 
 1. Review the session and list candidate learnings. If none qualify, say so and stop — write nothing.
 2. Read `.superskills/learnings/INDEX.md` (if present) to see the existing topic pages.
-3. For each learning, **merge it into the existing `<topic>.md` page it belongs to** — keep the page focused, remove redundancy, and cross-link related topics with `[[topic]]`. Only create a new `<topic>.md` when no existing topic fits. Never duplicate a rule that already lives on another page. A page looks like:
+3. For each learning, **merge it into the existing `<topic>.md` page it belongs to** — keep the page focused, remove redundancy, and cross-link related topics with `[[topic]]`. Only create a new `<topic>.md` when no existing topic fits. Never duplicate a rule that already lives on another page. When a learning updates or contradicts a rule already on the page, **replace the old rule** rather than keeping both — the wiki holds current truth, not its history. A page looks like:
 
    ```markdown
    ---

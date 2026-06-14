@@ -41,7 +41,20 @@ superskills 的自动总结只用一个 Stop hook。两个自然的反问：(1) 
 
 这是"参考 ECC 的 async 非阻塞理念"——后台、不阻塞、在多个时机跑——但**仍然只读现成 transcript，不做逐工具观察**。所以这里确实多了一个后台进程：是一个执行 Stop 判断的总结进程，不是被拒绝的那套观察流水线。
 
-四道守卫把它收住：`SUPERSKILLS_LEARN_CHILD=1` 让后台 learner 自己不再触发总结（防递归）；单航班 lock（默认 90s）防两个 learner 并发写同一份 wiki；`SUPERSKILLS_NO_BG_LEARN=1` 可整体关闭；hook 的 PATH 上找不到 `claude` 二进制时，回退为老的"内联 block、每会话一次"。指令文本抽到 `plugins/superskills/hooks/learn-prompt.js` 作单一真源，hook 与 learn-auto/learn-wiki 基准都引用它，所以基准测的永远是真实出厂指令。
+四道守卫把它收住：`SUPERSKILLS_LEARN_CHILD=1` 让后台 learner 自己不再触发总结（防递归）；单航班 lock（默认 90s）防两个 learner 并发写同一份 wiki；`SUPERSKILLS_NO_BG_LEARN=1` 可整体关闭；找不到 learner CLI 时，回退为老的"内联 block、每会话一次"。指令文本抽到 `plugins/superskills/hooks/learn-prompt.js` 作单一真源，hook 与 learn-auto/learn-wiki 基准都引用它，所以基准测的永远是真实出厂指令。
+
+## 两个运行时：Claude Code 与 Codex
+
+同一个 Stop hook 在 Claude Code 和 Codex 上都能跑——两者的 Stop 事件给 stdin 的字段同形（`session_id`/`transcript_path`/`cwd`），所以闸门逻辑（够多消息、有写、游标节流）一份代码复用。差别只在 learner 怎么拉起，`SUPERSKILLS_LEARN_CLI` 选择：
+
+- **Claude Code**：`claude -p`，默认 **Sonnet**（learn-auto 实测召回+难精度都 100%，比 Opus 便宜得多；后台记账不需要前沿模型），`--allowedTools` 只给文件工具、不给 Bash。
+- **Codex**：`codex exec -s workspace-write`，模型**继承用户档位**——ChatGPT 账号的 Codex 不允许 `gpt-5-mini` 这类便宜 API 模型，所以不强行指定，只把 reasoning effort 压到 medium 省成本。
+
+一个踩坑值得记：守卫文案必须分平台。Claude Code 用独立的 Read/Write 工具改文件，所以可以直接说"不要跑任何 shell"。但 **Codex 的文件读写本身走 shell**（apply_patch/cat），同一句"不要跑 shell"会让它连 wiki 都读不了、直接罢工。所以 Codex 版守卫改为：只允许动 `.superskills/learnings/`、不准 git/commit、不碰目录外文件，靠 `workspace-write` 沙箱兜底。改对之后，`codex exec`（默认 gpt-5.5）做 wiki 合并一次过满分。装法上，`install.sh` 把 Stop hook 写进 `~/.codex/hooks.json`（绝对路径指向克隆仓库脚本），单独 `codex plugin add` 只装 skills。
+
+## 与 Karpathy 的 LLM-wiki 对齐
+
+沉淀格式刻意按 Karpathy 的 "LLM wiki" 范式（[gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)）：主题页而非按日期堆文件、一个 `INDEX.md` 目录、`[[topic]]` 交叉链接、合并去重、整库放进上下文而不是 RAG（百页以内上下文里的结构化 wiki 比向量检索更可靠）。在此之上加了 gist 的 "lint" 思想的最小版——**新学习与旧规则冲突时替换而非并存**（wiki 存当前真相，不存历史）。刻意没有照搬 gist 的 action log：无限增长的日志与 superskills"越攒越密而非越长"的取向相悖，是可以拒绝的可选机制。
 
 ## 这个问题暴露的盲点
 

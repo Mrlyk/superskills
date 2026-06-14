@@ -63,6 +63,7 @@ export SUPERSKILLS_LEARN_LOCK_MS=0
 T="$TMP/t-qualify.jsonl"; make_transcript "$T" 6 yes
 out="$(run_stop sess-1 "$T" "$REPO")"
 assert_contains "qualifying session spawns background learn" "$out" '"superskills_learn":"spawn"'
+assert_contains "default learner CLI is claude" "$out" '"cli":"claude"'
 assert_contains "first trigger is labelled first" "$out" '"trigger":"first"'
 assert_contains "reason mentions learnings dir" "$out" '.superskills/learnings/'
 
@@ -103,6 +104,17 @@ SUPERSKILLS_LEARN_CHILD=1; export SUPERSKILLS_LEARN_CHILD
 out="$(run_stop sess-child "$T" "$REPO")"
 assert_empty "child guard prevents learner recursion" "$out"
 unset SUPERSKILLS_LEARN_CHILD
+
+# Codex path: SUPERSKILLS_LEARN_CLI=codex spawns `codex exec` instead of claude.
+# Force a resolvable codex bin so spawn mode is selected; assert the decision
+# records cli=codex.
+SUPERSKILLS_LEARN_CLI=codex; export SUPERSKILLS_LEARN_CLI
+SUPERSKILLS_CODEX_BIN="$(command -v node)"; export SUPERSKILLS_CODEX_BIN
+out="$(run_stop sess-codex "$T" "$REPO")"
+assert_contains "codex path spawns learner" "$out" '"superskills_learn":"spawn"'
+assert_contains "codex path records cli=codex" "$out" '"cli":"codex"'
+unset SUPERSKILLS_CODEX_BIN
+unset SUPERSKILLS_LEARN_CLI
 
 # Sync fallback: no reachable claude (or explicit opt-in) keeps the proven inline
 # Stop-block behavior, still at most once per session.

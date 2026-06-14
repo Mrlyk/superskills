@@ -41,7 +41,20 @@ The fix keeps the exact same judgment (read the transcript, full-context model d
 
 This is ECC's async-non-blocking philosophy — background, non-blocking, fired at more than one moment — but it **still only reads the ready-made transcript; it does not observe per tool call**. So yes, this adds one background process: a single learner *executing the Stop judgment* off-thread, not the observation pipeline we rejected.
 
-Four guards keep it bounded: `SUPERSKILLS_LEARN_CHILD=1` stops the background learner from triggering its own learner (anti-recursion); a single-flight lock (default 90s) keeps two learners from writing the same wiki at once; `SUPERSKILLS_NO_BG_LEARN=1` disables it entirely; and when no `claude` binary is reachable on the hook's PATH it falls back to the old inline once-per-session block. The instruction text lives in `plugins/superskills/hooks/learn-prompt.js` as a single source of truth that both the hook and the learn-auto/learn-wiki benchmarks read, so the benchmark always tests the exact shipped instruction.
+Four guards keep it bounded: `SUPERSKILLS_LEARN_CHILD=1` stops the background learner from triggering its own learner (anti-recursion); a single-flight lock (default 90s) keeps two learners from writing the same wiki at once; `SUPERSKILLS_NO_BG_LEARN=1` disables it entirely; and when no learner CLI is reachable it falls back to the old inline once-per-session block. The instruction text lives in `plugins/superskills/hooks/learn-prompt.js` as a single source of truth that both the hook and the learn-auto/learn-wiki benchmarks read, so the benchmark always tests the exact shipped instruction.
+
+## Two runtimes: Claude Code and Codex
+
+The same Stop hook runs on both Claude Code and Codex — their Stop events deliver the same stdin fields (`session_id`/`transcript_path`/`cwd`), so the gate (enough messages, files changed, cursor throttle) is one shared codebase. Only the learner launch differs, selected by `SUPERSKILLS_LEARN_CLI`:
+
+- **Claude Code**: `claude -p`, defaulting to **Sonnet** (learn-auto scores it 100% on recall and hard precision, and it is far cheaper than Opus — background bookkeeping never needs a frontier model), with `--allowedTools` limited to file tools (no Bash).
+- **Codex**: `codex exec -s workspace-write`, model **inherited from the user's plan** — ChatGPT-account Codex does not allow cheap API models like `gpt-5-mini`, so the learner forces no model and only lowers reasoning effort to medium for cost.
+
+One pitfall worth recording: the guardrail wording must be per-CLI. Claude Code edits files via dedicated Read/Write tools, so it can be told "do not run any shell." But **Codex does file I/O through the shell** (apply_patch/cat), so the same "no shell" line leaves it unable to even read the wiki — it refuses outright. The Codex guardrail instead allows file work, forbids only git/commit and writes outside `.superskills/learnings/`, and leans on the `workspace-write` sandbox. With that fix, `codex exec` (default gpt-5.5) does the wiki-merge perfectly on the first try. For wiring, `install.sh` writes the Stop hook into `~/.codex/hooks.json` (absolute paths into the clone); a bare `codex plugin add` installs only skills.
+
+## Alignment with Karpathy's LLM wiki
+
+The persistence format deliberately follows Karpathy's "LLM wiki" pattern ([gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)): topic pages rather than dated files, an `INDEX.md` catalog, `[[topic]]` cross-links, merge-and-dedupe, and the whole base in context rather than RAG (under a few hundred pages, a structured in-context wiki beats vector retrieval). On top of that it adds a minimal version of the gist's "lint" idea — **when a new learning contradicts an existing rule, replace it rather than keeping both** (the wiki holds current truth, not history). It intentionally omits the gist's action log: an unbounded log conflicts with superskills' "denser, not longer" stance, so that optional machinery is declined.
 
 ## The blind spot this exposed
 

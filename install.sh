@@ -19,7 +19,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$REPO_DIR/plugins/superskills"
 SKILLS=(learn discover clarify test)   # installed as ss-<name> to avoid collisions
-HOOK_FILES=(session-start.js stop-verify.js stop-learn.js)
+HOOK_FILES=(session-start.js stop-verify.js stop-learn.js learn-prompt.js)
 
 TOOLS=""
 UNINSTALL=0
@@ -130,6 +130,60 @@ add('Stop', null, 'stop-learn.js', 15);
 if (Object.keys(settings.hooks).length === 0) delete settings.hooks;
 fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
 EOF
+}
+
+# Codex auto-learning: merge a Stop hook into ~/.codex/hooks.json (same hook JSON
+# shape as Claude Code). Only stop-learn (validated on `codex exec`); recall stays
+# via the AGENTS.md INDEX pointer. SUPERSKILLS_LEARN_CLI=codex selects the codex
+# learner. Idempotent: strips our prior entry before adding.
+merge_codex_hooks() {
+  local base="$1" mode="$2"
+  node - "$base" "$mode" <<'EOF'
+const fs = require('fs');
+const path = require('path');
+const [base, mode] = process.argv.slice(2);
+const file = path.join(base, 'hooks.json');
+let cfg = {};
+if (fs.existsSync(file)) {
+  const raw = fs.readFileSync(file, 'utf8').trim();
+  if (raw) {
+    try { cfg = JSON.parse(raw); } catch (e) {
+      console.error(`refusing to touch invalid JSON: ${file}`);
+      process.exit(1);
+    }
+  }
+}
+cfg.hooks = cfg.hooks || {};
+const isOurs = (entry) =>
+  JSON.stringify(entry).includes(path.join('superskills', 'hooks'));
+if (Array.isArray(cfg.hooks.Stop)) {
+  cfg.hooks.Stop = cfg.hooks.Stop.filter((e) => !isOurs(e));
+  if (cfg.hooks.Stop.length === 0) delete cfg.hooks.Stop;
+}
+if (mode === 'install') {
+  const script = path.join(base, 'superskills', 'hooks', 'stop-learn.js');
+  cfg.hooks.Stop = cfg.hooks.Stop || [];
+  cfg.hooks.Stop.push({
+    hooks: [{ type: 'command', command: `SUPERSKILLS_LEARN_CLI=codex node "${script}"`, timeout: 15 }],
+  });
+}
+if (Object.keys(cfg.hooks).length === 0) delete cfg.hooks;
+fs.writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n');
+EOF
+}
+
+install_codex_hooks() { # base
+  local base="$1"
+  mkdir -p "$base/superskills/hooks"
+  cp "$PLUGIN_DIR/hooks/stop-learn.js" "$base/superskills/hooks/stop-learn.js"
+  cp "$PLUGIN_DIR/hooks/learn-prompt.js" "$base/superskills/hooks/learn-prompt.js"
+  merge_codex_hooks "$base" install
+}
+
+uninstall_codex_hooks() { # base
+  local base="$1"
+  [[ -f "$base/hooks.json" ]] && merge_codex_hooks "$base" uninstall
+  rm -f "$base/superskills/hooks/stop-learn.js" "$base/superskills/hooks/learn-prompt.js"
 }
 
 # Copy a skill, renaming it ss-<name> (frontmatter name kept in sync).
@@ -314,6 +368,7 @@ for t in "${TOOL_LIST[@]}"; do
       codex)
         if codex_plugin_capable; then uninstall_codex_plugin; fi
         uninstall_codex_prompts "$base"
+        uninstall_codex_hooks "$base"
         ;;
       *) uninstall_claude_like "$base" ;;
     esac
@@ -322,6 +377,8 @@ for t in "${TOOL_LIST[@]}"; do
     case "$t" in
       codex)
         if codex_plugin_capable; then install_codex_plugin; else install_codex_prompts "$base"; fi
+        install_codex_hooks "$base"
+        echo "codex auto-learning enabled via ~/.codex/hooks.json (Stop -> codex exec learner)"
         ;;
       claude)
         install_claude_like "$base"
@@ -342,7 +399,8 @@ if [[ "$UNINSTALL" != 1 ]]; then
 
 Done. In each project, run the discover skill once to generate
 .superskills/conventions.md + AGENTS.md + CLAUDE.md, then commit them.
-Auto-learning hooks: Claude Code (plugin) and Aone Copilot; Codex has no hook
-mechanism, so auto-learning is unavailable there — use the learn skill manually.
+Auto-learning hooks: Claude Code (plugin), Aone Copilot, and Codex (Stop hook in
+~/.codex/hooks.json, learner runs via `codex exec`). The learn skill also works
+manually everywhere.
 EOS
 fi

@@ -29,6 +29,7 @@ A/B on the same tasks, same model (Sonnet 4.6), real end-to-end runs, determinis
 | Auto-learning · precision (keeps the rule, drops throwaways under noise) | 0% | 100% | **+100pp** |
 | Cross-session memory (reuses persisted team decisions) | 20% | 100% | **+80pp** |
 | Requirement clarification (asked-before-guessing rate) | 0% | 67% | **+67pp** |
+| Clarification · self-triggered (Discover's AGENTS.md directive; asks when a task cites an unknowable convention) | 33% | 100% | **+67pp** |
 | Final test pass (2 planted bugs in "just developed" code) | 40% | 100% | **+60pp** |
 | Convention adherence (rules scattered in docs) | 100% | 100% | even |
 | HumanEval hard subset (canonical `check`) | 40% | 50% | **+10pp** |
@@ -55,7 +56,7 @@ codex plugin marketplace add ./superskills
 codex plugin add superskills@superskills
 ```
 
-Or run `./install.sh` inside the clone — same flow when the codex CLI supports plugins, falling back to custom prompts on older CLIs. Keep the clone in place; Codex resolves the plugin from it.
+Or run `./install.sh` inside the clone — same flow when the codex CLI supports plugins, falling back to custom prompts on older CLIs. `install.sh` also writes the auto-learning Stop hook into `~/.codex/hooks.json` (the learner runs `codex exec`); a bare `codex plugin add` installs only the skills, no hook. Keep the clone in place; Codex resolves the plugin and hook scripts from it.
 
 ### Aone Copilot
 
@@ -71,7 +72,7 @@ To enable superskills in a single project without touching your global setup: in
 | Tool | Skills | Hooks (auto-learning + injection) | Project-level install |
 |------|--------|------|------|
 | Claude Code | plugin: `superskills:discover` etc. | yes | `--scope project/local` or `install.sh --project` |
-| Codex | plugin: `superskills:discover` etc. | no (Codex plugins have no hook mechanism) — use the learn skill manually | no plugin project scope; covered by `AGENTS.md` + `.superskills/` |
+| Codex | plugin: `superskills:discover` etc. | yes via `install.sh` (writes `~/.codex/hooks.json`; the learner runs `codex exec`); learnings inject through the `AGENTS.md` index pointer | no plugin project scope; covered by `AGENTS.md` + `.superskills/` |
 | Aone Copilot | `~/.aone_copilot/skills/ss-*` | yes | `install.sh --project` (lands in `.aone_copilot/`) |
 
 `./install.sh --tools claude` remains a legacy settings-based install for environments without marketplace access. `--uninstall` reverses everything and preserves your own settings. Then, in each project, run the discover skill once and commit the generated files.
@@ -86,7 +87,7 @@ To enable superskills in a single project without touching your global setup: in
 | `superskills:test` | skill | One full unit-test pass after development is done. Result-driven, no fixed process. |
 | SessionStart hook | hook | Injects the learnings index into each session; reminds you when conventions drift >30 commits behind HEAD; suggests `discover` for projects with no AI specs. |
 | Stop hook (verify) | hook | Verify-before-done: if the session edited code but never executed it afterwards, blocks the stop once and demands a real run — documented examples plus boundary cases — with root-cause fixes. |
-| Stop hook (learn) | hook | Auto-learning: when a session did real work (≥5 user messages and file edits), spawns a background learner that reads a session replay and persists durable learnings off the main thread — re-firing as the session grows so work after the first summary is captured too (falls back to one inline judgment when no background learner can be launched). |
+| Stop hook (learn) | hook | Auto-learning: when a session did real work (≥5 user messages and file edits), spawns a background learner that reads a session replay and persists durable learnings off the main thread — re-firing as the session grows so work after the first summary is captured too. The learner picks its CLI per platform — `claude -p` on Claude Code (default Sonnet for cost), `codex exec` on Codex — falling back to one inline judgment when no background learner can be launched. |
 
 Everything shows up in the `/plugin` panel with per-component token costs. Total always-on cost: ~418 tokens.
 
@@ -110,7 +111,7 @@ All persisted knowledge always lives at the project repository root — project-
 Two channels, chosen so the core works even without hooks:
 
 - **Conventions** load through file references: `CLAUDE.md` imports them for Claude Code and Aone Copilot; `AGENTS.md` instructs Codex to read them. Zero hook dependency, works in every tool.
-- **Learnings** load as an index via the SessionStart hook (Claude Code / Aone Copilot); Codex has no hook mechanism, so its `AGENTS.md` pointer guides the model to the index instead. The model reads a one-line-per-topic index and opens a full topic page only when relevant — past knowledge costs a few hundred tokens, not thousands.
+- **Learnings** load as an index via the SessionStart hook (Claude Code / Aone Copilot); on Codex, superskills wires only the Stop learner, so its `AGENTS.md` pointer guides the model to the index instead. The model reads a one-line-per-topic index and opens a full topic page only when relevant — past knowledge costs a few hundred tokens, not thousands.
 
 Learnings are organized as a topic wiki — one page per topic, new learnings merged in and deduplicated rather than piled up by date (see [docs/learnings-wiki.en.md](docs/learnings-wiki.en.md)). Those that harden into stable rules get folded into `conventions.md` by `discover`'s refresh mode, keeping the knowledge base from growing forever.
 

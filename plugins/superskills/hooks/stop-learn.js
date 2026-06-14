@@ -13,12 +13,18 @@
 // never loop on stop_hook_active, throttle by a per-session cursor, and hold a
 // short single-flight lock so two learners never edit the wiki at once.
 //
+// Works on both Claude Code and Codex: both fire a Stop hook with the same stdin
+// shape (session_id, transcript_path, cwd). SUPERSKILLS_LEARN_CLI selects which
+// headless learner to spawn — `claude -p` (default) or `codex exec`.
+//
 // Env:
 //   SUPERSKILLS_NO_BG_LEARN=1   disable auto-learning entirely
 //   SUPERSKILLS_LEARN_SYNC=1    fall back to the old inline Stop-block (no spawn)
-//   SUPERSKILLS_LEARN_MODEL=M   model for the background learner (default: inherit)
+//   SUPERSKILLS_LEARN_CLI=codex spawn `codex exec` instead of `claude -p`
+//   SUPERSKILLS_LEARN_MODEL=M   learner model (claude: default sonnet; codex: inherit)
 //   SUPERSKILLS_LEARN_DRYRUN=1  print the spawn decision instead of spawning
 //   SUPERSKILLS_CLAUDE_BIN=path explicit claude binary (else resolved from PATH)
+//   SUPERSKILLS_CODEX_BIN=path  explicit codex binary (else resolved from PATH)
 //   SUPERSKILLS_LEARN_EVERY_MESSAGES / _WRITES / _LOCK_MS  throttle tuning
 
 const fs = require('fs');
@@ -36,6 +42,12 @@ const CHILD_MAX_TURNS = '12';
 // no Bash, no git. It must never be able to commit, push, rm, or clean. Its job
 // is to edit wiki files in the working tree; the user reviews and commits.
 const ALLOWED_TOOLS = 'Read,Glob,Grep,Write,Edit,MultiEdit';
+// Default model for the claude learner: Sonnet is benchmarked at 100% on the
+// learn-auto task (recall + hard precision) and is far cheaper than Opus, so the
+// background bookkeeping never needs a frontier model. Override with
+// SUPERSKILLS_LEARN_MODEL. The codex learner inherits the user's plan model
+// (cheap API minis are not available on ChatGPT-account Codex) unless overridden.
+const DEFAULT_CLAUDE_MODEL = 'sonnet';
 const WRITE_TOOLS = /"name"\s*:\s*"(Edit|Write|MultiEdit|NotebookEdit)"/;
 
 function envInt(name, fallback) {
@@ -142,10 +154,11 @@ function summarizeAssistant(blocks) {
   return parts.join(' ').slice(0, 300);
 }
 
-function findClaude() {
-  const override = process.env.SUPERSKILLS_CLAUDE_BIN;
+// Resolve a CLI binary: honor an explicit override path, else scan PATH.
+function findBin(base, overrideEnv) {
+  const override = process.env[overrideEnv];
   if (override) { try { if (fs.existsSync(override)) return override; } catch { /* ignore */ } }
-  const names = process.platform === 'win32' ? ['claude.cmd', 'claude.exe', 'claude'] : ['claude'];
+  const names = process.platform === 'win32' ? [`${base}.cmd`, `${base}.exe`, base] : [base];
   for (const d of (process.env.PATH || '').split(path.delimiter)) {
     if (!d) continue;
     for (const n of names) {
@@ -154,6 +167,44 @@ function findClaude() {
     }
   }
   return null;
+}
+
+function learnerCli() {
+  if (process.env.SUPERSKILLS_LEARN_CLI === 'codex') return 'codex';
+  if (process.env.SUPERSKILLS_LEARN_CLI === 'claude') return 'claude';
+  // Auto-detect: prefer claude; fall back to codex when only codex is reachable
+  // (covers a Codex host where the hook command's env prefix didn't propagate).
+  if (!findBin('claude', 'SUPERSKILLS_CLAUDE_BIN') && findBin('codex', 'SUPERSKILLS_CODEX_BIN')) {
+    return 'codex';
+  }
+  return 'claude';
+}
+
+function learnerBin(cli) {
+  return cli === 'codex'
+    ? findBin('codex', 'SUPERSKILLS_CODEX_BIN')
+    : findBin('claude', 'SUPERSKILLS_CLAUDE_BIN');
+}
+
+// Build the headless learner argv for the target CLI. Claude Code edits via
+// file tools (Bash withheld); Codex edits via the shell, sandboxed to
+// workspace-write, so it gets no tool allowlist — its guardrails are the prompt
+// plus the sandbox.
+function learnerArgs(cli, prompt, root) {
+  if (cli === 'codex') {
+    const args = ['exec', prompt,
+      '--sandbox', 'workspace-write',
+      '--skip-git-repo-check',
+      '-C', root,
+      '-c', 'model_reasoning_effort=medium'];
+    if (process.env.SUPERSKILLS_LEARN_MODEL) args.push('-m', process.env.SUPERSKILLS_LEARN_MODEL);
+    return args;
+  }
+  return ['-p', prompt,
+    '--permission-mode', 'acceptEdits',
+    '--allowedTools', ALLOWED_TOOLS,
+    '--max-turns', CHILD_MAX_TURNS,
+    '--model', process.env.SUPERSKILLS_LEARN_MODEL || DEFAULT_CLAUDE_MODEL];
 }
 
 function readState(file) {
@@ -181,16 +232,13 @@ function runSyncFallback(dir, sessionId) {
   process.stdout.write(JSON.stringify({ decision: 'block', reason: LEARN_INSTRUCTION }));
 }
 
-function spawnLearner(root, prompt, logFile) {
+// ctx = { root, logFile }. Detached so the hook returns immediately; the learner
+// outlives it. SUPERSKILLS_LEARN_CHILD stops the learner from triggering itself.
+function spawnLearner(cli, prompt, ctx) {
   let logFd = 'ignore';
-  try { logFd = fs.openSync(logFile, 'a'); } catch { /* fall back to ignore */ }
-  const args = ['-p', prompt,
-    '--permission-mode', 'acceptEdits',
-    '--allowedTools', ALLOWED_TOOLS,
-    '--max-turns', CHILD_MAX_TURNS];
-  if (process.env.SUPERSKILLS_LEARN_MODEL) args.push('--model', process.env.SUPERSKILLS_LEARN_MODEL);
-  const child = spawn(findClaude(), args, {
-    cwd: root,
+  try { logFd = fs.openSync(ctx.logFile, 'a'); } catch { /* fall back to ignore */ }
+  const child = spawn(learnerBin(cli), learnerArgs(cli, prompt, ctx.root), {
+    cwd: ctx.root,
     detached: true,
     stdio: ['ignore', logFd, logFd],
     env: Object.assign({}, process.env, { SUPERSKILLS_LEARN_CHILD: '1' }),
@@ -224,9 +272,10 @@ function main() {
   pruneOldMarkers(dir);
 
   const dryRun = process.env.SUPERSKILLS_LEARN_DRYRUN === '1';
+  const cli = learnerCli();
 
-  // No reachable claude (or explicit opt-in): keep the proven inline behavior.
-  if (process.env.SUPERSKILLS_LEARN_SYNC === '1' || !findClaude()) {
+  // No reachable learner CLI (or explicit opt-in): keep the proven inline behavior.
+  if (process.env.SUPERSKILLS_LEARN_SYNC === '1' || !learnerBin(cli)) {
     runSyncFallback(dir, sessionId);
     return;
   }
@@ -247,6 +296,7 @@ function main() {
   if (dryRun) {
     process.stdout.write(JSON.stringify({
       superskills_learn: 'spawn',
+      cli,
       trigger: first ? 'first' : 'cursor',
       userMessages,
       writes,
@@ -256,7 +306,10 @@ function main() {
   }
 
   try { fs.writeFileSync(lock, new Date().toISOString()); } catch { /* best effort */ }
-  spawnLearner(root, buildChildPrompt(buildReplay(transcript)), path.join(dir, `${sessionId}.learn.log`));
+  spawnLearner(cli, buildChildPrompt(buildReplay(transcript), cli), {
+    root,
+    logFile: path.join(dir, `${sessionId}.learn.log`),
+  });
 }
 
 try { main(); } catch { /* never block the stop on our own errors */ }

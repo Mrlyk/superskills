@@ -1,0 +1,6 @@
+{"arm":"A","trial":2,"checks":{"askedKeyQuestion":false,"noPrematureCode":true},"score":0.5}
+{"arm":"A","trial":1,"checks":{"askedKeyQuestion":false,"noPrematureCode":true},"score":0.5}
+{"arm":"B","trial":2,"checks":{"askedKeyQuestion":true,"noPrematureCode":true},"score":1}
+{"arm":"A","trial":3,"checks":{"askedKeyQuestion":true,"noPrematureCode":true},"score":1}
+{"arm":"B","trial":1,"checks":{"askedKeyQuestion":true,"noPrematureCode":true},"score":1}
+{"arm":"B","trial":3,"checks":{"askedKeyQuestion":true,"noPrematureCode":true},"score":1}
