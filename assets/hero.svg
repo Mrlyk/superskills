@@ -65,7 +65,7 @@
 
     <!-- Stop · learn: Session N -> memory -->
     <path d="M 540 174 H 770 V 226" fill="none" stroke="#7FB08F" stroke-width="1.8" marker-end="url(#arrow-hook)"/>
-    <text x="652" y="165" text-anchor="middle" font-size="12" fill="#5F5A54">Stop · learn — merge into the topic wiki</text>
+    <text x="652" y="165" text-anchor="middle" font-size="12" fill="#5F5A54">Stop · learn ↻ background, as work lands</text>
 
     <!-- SessionStart: memory -> Session N+1 -->
     <path d="M 770 346 V 367 H 540" fill="none" stroke="#7FB08F" stroke-width="1.8" marker-end="url(#arrow-hook)"/>

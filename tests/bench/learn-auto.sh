@@ -80,7 +80,7 @@ stop_reason() {
     printf '{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Edit","input":{"file_path":"src/receipt.js"}}]}}\n'
   } > "$t"
   SUPERSKILLS_STATE_DIR="$st" printf '{"session_id":"reason","transcript_path":"%s","cwd":"%s","stop_hook_active":false}' "$t" "$repo" \
-    | SUPERSKILLS_STATE_DIR="$st" node "$PLUGIN_DIR/hooks/stop-learn.js" \
+    | SUPERSKILLS_STATE_DIR="$st" SUPERSKILLS_LEARN_DRYRUN=1 node "$PLUGIN_DIR/hooks/stop-learn.js" \
     | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(JSON.parse(s).reason))"
 }
 REASON="$(stop_reason)"

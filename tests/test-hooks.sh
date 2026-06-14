@@ -53,13 +53,28 @@ run_session_start() { # cwd
 echo "== stop-learn.js =="
 REPO="$TMP/proj"; make_repo "$REPO"
 
+# Spawn mode (default): force a resolvable claude bin and dry-run so we observe
+# the spawn DECISION without launching a real learner; disable the single-flight
+# lock so a later trigger in the same session isn't rate-limited within the test.
+export SUPERSKILLS_LEARN_DRYRUN=1
+export SUPERSKILLS_CLAUDE_BIN="$(command -v node)"
+export SUPERSKILLS_LEARN_LOCK_MS=0
+
 T="$TMP/t-qualify.jsonl"; make_transcript "$T" 6 yes
 out="$(run_stop sess-1 "$T" "$REPO")"
-assert_contains "qualifying session triggers learn" "$out" '"decision":"block"'
+assert_contains "qualifying session spawns background learn" "$out" '"superskills_learn":"spawn"'
+assert_contains "first trigger is labelled first" "$out" '"trigger":"first"'
 assert_contains "reason mentions learnings dir" "$out" '.superskills/learnings/'
 
 out="$(run_stop sess-1 "$T" "$REPO")"
-assert_empty "same session never triggers twice" "$out"
+assert_empty "identical transcript does not re-trigger" "$out"
+
+# Coverage: more work later in the SAME session triggers another learn — the old
+# once-per-session marker structurally could never do this.
+T_MORE="$TMP/t-more.jsonl"; make_transcript "$T_MORE" 12 yes
+out="$(run_stop sess-1 "$T_MORE" "$REPO")"
+assert_contains "later work re-triggers learn" "$out" '"superskills_learn":"spawn"'
+assert_contains "re-trigger is labelled cursor" "$out" '"trigger":"cursor"'
 
 out="$(run_stop sess-2 "$T" "$REPO" true)"
 assert_empty "stop_hook_active suppresses trigger" "$out"
@@ -78,6 +93,28 @@ assert_empty "non-git cwd does not trigger" "$out"
 
 out="$(echo 'not json' | node "$REPO_DIR/plugins/superskills/hooks/stop-learn.js")"
 assert_empty "malformed stdin is silent" "$out"
+
+SUPERSKILLS_NO_BG_LEARN=1; export SUPERSKILLS_NO_BG_LEARN
+out="$(run_stop sess-optout "$T" "$REPO")"
+assert_empty "opt-out env disables learning" "$out"
+unset SUPERSKILLS_NO_BG_LEARN
+
+SUPERSKILLS_LEARN_CHILD=1; export SUPERSKILLS_LEARN_CHILD
+out="$(run_stop sess-child "$T" "$REPO")"
+assert_empty "child guard prevents learner recursion" "$out"
+unset SUPERSKILLS_LEARN_CHILD
+
+# Sync fallback: no reachable claude (or explicit opt-in) keeps the proven inline
+# Stop-block behavior, still at most once per session.
+unset SUPERSKILLS_CLAUDE_BIN
+SUPERSKILLS_LEARN_SYNC=1; export SUPERSKILLS_LEARN_SYNC
+out="$(run_stop sess-sync "$T" "$REPO")"
+assert_contains "sync fallback blocks once" "$out" '"decision":"block"'
+assert_contains "sync reason mentions learnings dir" "$out" '.superskills/learnings/'
+out="$(run_stop sess-sync "$T" "$REPO")"
+assert_empty "sync fallback fires at most once per session" "$out"
+unset SUPERSKILLS_LEARN_SYNC
+unset SUPERSKILLS_LEARN_DRYRUN SUPERSKILLS_LEARN_LOCK_MS
 
 echo "== stop-verify.js =="
 run_verify() { # session transcript cwd [active]

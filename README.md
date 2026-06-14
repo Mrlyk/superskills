@@ -86,7 +86,7 @@ git clone https://github.com/Mrlyk/superskills.git && cd superskills
 | `superskills:test` | skill | 开发结束后组织一次完整的单元测试，只看结果，不固定流程 |
 | SessionStart hook | hook | 每次会话注入 learnings 索引；规范落后 HEAD 超过 30 个提交时提醒刷新；项目缺少 AI 规范文件时建议运行 discover |
 | Stop hook（verify） | hook | 完成前验证：若会话改了代码却从未执行过，阻止收尾一次并要求真实运行——文档示例加边界用例——按根因修复 |
-| Stop hook（learn） | hook | 自动总结：当会话做了实际工作（用户消息不少于 5 条且有文件修改）时，在结束前让模型带着完整上下文判断一次是否有值得沉淀的内容 |
+| Stop hook（learn） | hook | 自动总结：当会话做了实际工作（用户消息不少于 5 条且有文件修改）时，在后台拉起一个独立的总结进程读取会话回放并沉淀，不阻塞主线程；随会话推进每积累若干条新消息再触发一次，覆盖首次总结之后的工作（无法启动后台时回退为收尾前内联判断一次） |
 
 所有组件都会出现在 `/plugin` 面板中，并标注各自的 token 成本。常驻总成本约 418 token。
 

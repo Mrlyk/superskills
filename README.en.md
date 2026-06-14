@@ -86,7 +86,7 @@ To enable superskills in a single project without touching your global setup: in
 | `superskills:test` | skill | One full unit-test pass after development is done. Result-driven, no fixed process. |
 | SessionStart hook | hook | Injects the learnings index into each session; reminds you when conventions drift >30 commits behind HEAD; suggests `discover` for projects with no AI specs. |
 | Stop hook (verify) | hook | Verify-before-done: if the session edited code but never executed it afterwards, blocks the stop once and demands a real run — documented examples plus boundary cases — with root-cause fixes. |
-| Stop hook (learn) | hook | Auto-learning: when a session did real work (≥5 user messages and file edits), asks the model once — with full session context — to persist anything durable before stopping. |
+| Stop hook (learn) | hook | Auto-learning: when a session did real work (≥5 user messages and file edits), spawns a background learner that reads a session replay and persists durable learnings off the main thread — re-firing as the session grows so work after the first summary is captured too (falls back to one inline judgment when no background learner can be launched). |
 
 Everything shows up in the `/plugin` panel with per-component token costs. Total always-on cost: ~418 tokens.
 
